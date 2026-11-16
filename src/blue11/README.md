@@ -2,7 +2,7 @@
 
 A self-contained TypeScript library. The Blue-11 implements the PDP-11 instruction set (a
 subset of its assembler syntax): the /40 model's set with the EIS option, an assembler, a
-disassembler, a bus with pluggable memory-mapped devices, and DEC's console and line clock. No dependencies. Rover is its first user, not its owner.
+disassembler, a bus with pluggable memory-mapped devices, and DEC's console and line clock. No dependencies.
 Design rationale: [`docs/BLUE11_CPU.md`](../../docs/BLUE11_CPU.md) §14.
 
 Every code block in this file is run by `tests/blue11/readme-examples.test.ts`, and that
@@ -28,7 +28,7 @@ test fails if a block here isn't in it. If you change an example, change both.
 | :--- | :--- |
 | Run a program with a console (print, keyboard) and a clock | `SimpleMachine` |
 | Your own memory-mapped hardware (sensors, motors, displays) | `DeviceMachine` + your `Device` classes (+ `DL11` / `KW11L` if wanted) |
-| Your own memory map, protection, or timing model (as Rover's `src/core/machine/` does) | `Cpu` with your own `Bus` |
+| Your own memory map, protection, or timing model (as a game with its own hardware does) | `Cpu` with your own `Bus` |
 | Turn source into bytes, a listing, line numbers | `assemble` |
 | Show machine code as text | `disassemble` |
 | Syntax highlighting in CodeMirror 6 | `src/blue11/codemirror.ts` (separate entry point) |
@@ -272,7 +272,7 @@ models differed; 10 is the illegal-instruction vector). Not implemented: `MARK`,
 mode rules are the /45 model's, without its memory management: protect memory yourself by
 refusing writes in `bus.write`.
 
-**Hosting the CPU yourself** (your own `Bus`, as Rover does):
+**Hosting the CPU yourself** (your own `Bus`):
 - Give `run` a budget per step of your program (a frame, a tick) and subtract
   `RunResult.cycles`: it may overshoot by one instruction.
 - You decide when devices interrupt: call `cpu.interrupt` from your own device logic,
@@ -370,8 +370,7 @@ interrupts if IE. CSR bits: `CSR.DONE` (200), `CSR.IE` (100).
 `new SimpleMachine({ memory?, clockCycles = 1000, ...CpuOptions })`: a `DeviceMachine`
 with a `DL11` console (`console`) and a `KW11L` clock (`clock`). Adds `type(ch)`,
 `output`, `input`, `onOutput` (all from the console) and `clockCycles`. `DEV` has the
-register addresses and vectors (`DEV.XBUF`, `DEV.VEC_CLOCK`, …). The standalone
-simulator page (`simulator.html`, `src/simulator/`) is built on it. You can `add` more
+register addresses and vectors (`DEV.XBUF`, `DEV.VEC_CLOCK`, …). You can `add` more
 devices.
 
 ## Host recipes

@@ -174,7 +174,7 @@ difficulty rising with depth. Scoring *later* (ticks, energy, coins).
 
 ## 10. Open items
 
-- Relationship to the earlier "Rover" project referenced in the library docs.
-- The library's own test suite (`tests/blue11/*`) and `docs/BLUE11_CPU.md` are not in this
-  repository yet; only a boundary test and smoke tests are.
+- Library tests present: `boundary`, `smoke`, `readme-examples`, `review-fixes`, `syntax`.
+  Not yet here: `cpu`, `assembler`, `syntax-compat`, `devices` tests and `docs/BLUE11_CPU.md`,
+  which `src/blue11/AGENTS.md` refers to.
 - Exact device addresses, vectors, timings and energy costs.

@@ -1,8 +1,7 @@
 /**
  * Blue-11: a CPU, assembler and disassembler as a standalone library.
  *
- * Rover is its first user, not its owner: nothing in this folder imports from the game
- * (a test enforces it). Deterministic, integer-only, no DOM. Design: docs/BLUE11_CPU.md §14.
+ * Nothing in this folder imports from the code that uses it (a test enforces it). Deterministic, integer-only, no DOM. Design: docs/BLUE11_CPU.md §14.
  *
  * API reference, conventions (octal, 16-bit words, cycles), recipes and pitfalls:
  * README.md in this folder; its examples are run by tests/blue11/readme-examples.test.ts.

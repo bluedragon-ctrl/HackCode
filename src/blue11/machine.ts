@@ -1,7 +1,6 @@
 /**
  * A minimal system around the CPU: RAM, a DL11 console terminal and a KW11-L line
- * clock, at their real DEC addresses and vectors. Used by the tests and the standalone
- * simulator page; a project with its own peripherals builds on {@link DeviceMachine}
+ * clock, at their real DEC addresses and vectors. Used by the tests; a project with its own peripherals builds on {@link DeviceMachine}
  * (`devices.ts`) the same way.
  *
  * Time is cycles: the line clock ticks every `clockCycles` CPU cycles, so a run is

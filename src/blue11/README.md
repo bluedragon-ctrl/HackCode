@@ -370,8 +370,7 @@ interrupts if IE. CSR bits: `CSR.DONE` (200), `CSR.IE` (100).
 `new SimpleMachine({ memory?, clockCycles = 1000, ...CpuOptions })`: a `DeviceMachine`
 with a `DL11` console (`console`) and a `KW11L` clock (`clock`). Adds `type(ch)`,
 `output`, `input`, `onOutput` (all from the console) and `clockCycles`. `DEV` has the
-register addresses and vectors (`DEV.XBUF`, `DEV.VEC_CLOCK`, …). The standalone
-simulator page (`simulator.html`, `src/simulator/`) is built on it. You can `add` more
+register addresses and vectors (`DEV.XBUF`, `DEV.VEC_CLOCK`, …). You can `add` more
 devices.
 
 ## Host recipes

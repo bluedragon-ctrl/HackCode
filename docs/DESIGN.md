@@ -255,7 +255,6 @@ difficulty rising with depth. Scoring *later* (ticks, energy, coins).
 
 ## 10. Open items
 
-- Relationship to the earlier "Rover" project referenced in the library docs.
 - BIOS contents (the ROM is empty so far), monsters' machines and devices, chargers,
   unlocking EIS with the math chip. Timings and energy costs are first guesses, to be
   tuned in play.

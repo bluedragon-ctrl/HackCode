@@ -256,8 +256,8 @@ difficulty rising with depth. Scoring *later* (ticks, energy, coins).
 ## 10. Open items
 
 - Relationship to the earlier "Rover" project referenced in the library docs.
-- The library's own test suite (`tests/blue11/*`) and `docs/BLUE11_CPU.md` are not in this
-  repository yet; only a boundary test and smoke tests are.
+- Still missing from the library's test suite: `syntax.test.ts`, `syntax-compat.test.ts`,
+  `review-fixes.test.ts`; and `docs/BLUE11_CPU.md` (all referenced from `src/blue11/`).
 - BIOS contents (the ROM is empty so far), monsters' machines and devices, chargers,
   unlocking EIS with the math chip. Timings and energy costs are first guesses, to be
   tuned in play.

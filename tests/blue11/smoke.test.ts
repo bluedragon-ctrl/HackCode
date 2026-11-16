@@ -1,4 +1,4 @@
-/** Smoke tests that the library works in this project's toolchain (its full suite lives upstream). */
+/** Smoke tests that the library works in this project's toolchain. */
 import { describe, expect, it } from 'vitest';
 import { assemble, disassemble, octal, SimpleMachine } from '../../src/blue11';
 

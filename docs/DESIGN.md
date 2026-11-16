@@ -162,9 +162,19 @@ Each lesson: hand-made map, win condition checked by the simulation, hints, refe
 Seeded procedural generation (BSP rooms + corridors), reachability check to the exit,
 difficulty rising with depth. Scoring *later* (ticks, energy, coins).
 
-## 9. Open items
+## 9. Assembler notes (from `src/blue11/README.md`)
 
-- Assembler capabilities (decimal literals, macros, includes, error reporting) — pending
-  review of `assembler.ts`.
-- Relationship to the earlier "Rover" project referenced in the library.
+- Octal by default, `10.` decimal, `'A` characters, local labels `1$`, expressions.
+- **No macros, no includes.** Device register names and BIOS call numbers are given to
+  the player through `assemble(..., { symbols })` — a predefined "prelude" (`WHLCSR`,
+  `SCNBUF`, …), shown in the lesson help.
+- Names are limited to 6 characters (`names: 'dec'`), as on the original — keep it for
+  authenticity; device names must fit.
+- Errors come back with line and column: shown inline in the CodeMirror editor.
+
+## 10. Open items
+
+- Relationship to the earlier "Rover" project referenced in the library docs.
+- The library's own test suite (`tests/blue11/*`) and `docs/BLUE11_CPU.md` are not in this
+  repository yet; only a boundary test and smoke tests are.
 - Exact device addresses, vectors, timings and energy costs.

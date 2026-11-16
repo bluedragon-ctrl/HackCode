@@ -19,7 +19,7 @@ Status: agreed design, v1 scope. Items marked *later* are out of scope for v1.
 src/blue11/   CPU, assembler, disassembler, device bus   (library: imports nothing from the game)
 src/core/     simulation: world, entities, robot devices, ticks, dungeon generator, seeded RNG
               pure TypeScript, deterministic, no DOM — unit-tested
-src/render/   PixiJS renderer (top-down 2D vector/neon look), behind a small interface
+src/render/   top-down 2D renderer (vector/neon look) behind a small interface: Canvas 2D now, PixiJS later
 src/ui/       editor (CodeMirror 6), debugger panels, lesson flow
 ```
 
@@ -73,6 +73,10 @@ Monsters have additional **private state** (facing, cooldowns, AI state) in thei
 machine's RAM; the 4-byte record is the public view returned by the scanner.
 
 Coordinates are **absolute** (X east, Y south).
+
+Hand-made maps are text, one character per cell (`src/core/maps.ts`): `#` wall, `.` floor,
+`E` exit, `$` one coin, `1`–`9` a coin pile, `C` math chip, `^ > v <` the robot and its
+heading. A plain map is won when the robot stands on the exit.
 
 ## 3. Execution model — deterministic ticks
 

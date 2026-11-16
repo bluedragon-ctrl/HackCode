@@ -9,21 +9,44 @@
   <body>
     <header>
       <h1>HackCode</h1>
-      <span class="tag">Blue-11 console — pre-alpha</span>
+      <span class="tag">Program the robot in Blue-11 assembly — reach the exit</span>
     </header>
     <main>
-      <section class="pane">
+      <section class="pane code">
         <div class="toolbar">
-          <button id="run">Run</button>
-          <span id="status"></span>
+          <button id="run" title="Assemble, load and run (Ctrl+Enter)">Run</button>
+          <button id="continue" title="Resume the paused program">Continue</button>
+          <button id="pause" title="Pause at the end of the tick">Pause</button>
+          <button id="step" title="One instruction">Step</button>
+          <button id="step-tick" title="The rest of this tick">Step tick</button>
+          <button id="reset" class="secondary" title="Rebuild the map; the program stays in the editor">Reset map</button>
+          <label class="speed">Speed
+            <select id="speed">
+              <option value="5">5 ticks/s</option>
+              <option value="20" selected>20 ticks/s</option>
+              <option value="60">60 ticks/s</option>
+              <option value="600">600 ticks/s</option>
+            </select>
+          </label>
         </div>
+        <div id="status"></div>
         <div id="editor"></div>
       </section>
-      <section class="pane">
+      <section class="pane side">
+        <canvas id="map"></canvas>
+        <div class="panels">
+          <div>
+            <h2>Robot</h2>
+            <div class="bar"><div id="energy-bar"></div></div>
+            <pre id="robot"></pre>
+          </div>
+          <div>
+            <h2>CPU</h2>
+            <pre id="regs"></pre>
+          </div>
+        </div>
         <h2>Console</h2>
         <pre id="output"></pre>
-        <h2>Registers</h2>
-        <pre id="regs"></pre>
       </section>
     </main>
     <script type="module" src="./src/main.ts"></script>

@@ -17,7 +17,7 @@
           <button id="run" title="Assemble, load and run (Ctrl+Enter)">Run</button>
           <button id="continue" title="Resume the paused program">Continue</button>
           <button id="pause" title="Pause at the end of the tick">Pause</button>
-          <button id="step" title="One instruction">Step</button>
+          <button id="step" title="One instruction. Breakpoints: click left of a line number, or F9">Step</button>
           <button id="step-tick" title="The rest of this tick">Step tick</button>
           <button id="reset" class="secondary" title="Rebuild the map; the program stays in the editor">Reset map</button>
           <select id="example" title="Replace the editor's program with an example">
@@ -54,6 +54,14 @@
         <div>
           <h2>Console</h2>
           <pre id="output"></pre>
+        </div>
+        <div>
+          <h2>Disassembly <span class="hint">click: breakpoint</span></h2>
+          <div id="disasm" class="listing"></div>
+        </div>
+        <div>
+          <h2>Memory <input id="mem-addr" placeholder="SP" title="An octal address, a label, a device name (WHLCSR) or a register (SP)" spellcheck="false"></h2>
+          <pre id="memory"></pre>
         </div>
       </section>
     </main>

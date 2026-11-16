@@ -118,6 +118,12 @@ The player works console-style: short snippets first, automating more over time.
 - **Continue** — resume a paused CPU; only allowed when code is unchanged since the last load.
 - Debugger: step instruction, step tick, breakpoints, registers / PSW / memory views,
   disassembly with symbolic device names, execution heat map (`onInstruction`).
+  Breakpoints are set in the editor gutter (or F9) and stop *before* their instruction;
+  Continue and Step tick pass a breakpoint at the PC, a fresh Run stops on one. Clicking a
+  disassembly row sets one there too, which is how to stop inside the BIOS. The heat map
+  counts instructions per address since the last load and shows per source line. The
+  memory view takes an octal address, a label, a device name or a register (default SP).
+  Assembler errors are shown on their lines.
 
 ### Failure states
 

@@ -13,7 +13,7 @@ header { display: flex; align-items: baseline; gap: 1rem; padding: 0.75rem 1.25r
 h1 { margin: 0; font-size: 1.4rem; color: var(--accent); text-shadow: 0 0 8px var(--accent); }
 h2 { font-size: 0.9rem; margin: 0.75rem 0 0.25rem; color: var(--accent); }
 .tag { opacity: 0.6; font-size: 0.85rem; }
-main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) 15rem; gap: 1rem; padding: 1rem 1.25rem; align-items: start; }
+main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) 21rem; gap: 1rem; padding: 1rem 1.25rem; align-items: start; }
 @media (max-width: 1100px) {
   main { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .side { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, 1fr); column-gap: 0.75rem; }
@@ -46,3 +46,25 @@ dialog::backdrop { background: #000a; }
 dialog .toolbar { justify-content: space-between; }
 dialog h2 { margin: 0; }
 #bios-source { max-height: calc(86vh - 4rem); overflow: auto; white-space: pre; }
+
+/* debugger */
+.hint { font-size: 0.7rem; opacity: 0.5; font-weight: normal; }
+.side pre, .listing { font-size: 0.8rem; }
+.listing { background: #000; border: 1px solid var(--line); padding: 0.25rem 0; white-space: pre; overflow-x: auto; }
+.listing .row { padding: 0 0.5rem; cursor: pointer; display: flex; }
+.listing .row:hover { background: #39d0ff18; }
+.listing .row.pc { background: #39d0ff30; color: #fff; }
+.listing .row.bp { color: #ff6b6b; }
+.listing .count { margin-left: auto; padding-left: 1ch; color: var(--warn); opacity: 0.8; }
+#mem-addr { width: 8rem; margin-left: 0.5rem; background: #000; color: var(--fg); border: 1px solid var(--line); font: inherit; font-size: 0.8rem; padding: 0 0.3rem; }
+#mem-addr.bad { border-color: var(--warn); }
+#memory { white-space: pre; }
+.cm-bp-gutter { width: 1.1em; cursor: pointer; }
+.cm-bp-gutter .cm-gutterElement { padding: 0 0 0 0.2em; }
+.cm-bp { color: #ff4d4d; text-shadow: 0 0 4px #ff4d4d; }
+.cm-heat-gutter .cm-gutterElement { width: 6px; padding: 0; }
+.cm-heat { display: block; height: 100%; width: 6px; background: var(--warn); opacity: calc(var(--heat) / 8); }
+.cm-pc-line { background: #39d0ff26 !important; box-shadow: inset 3px 0 0 var(--accent); }
+.cm-error-line { background: #ff4d4d1f; }
+.cm-asm-error { color: var(--warn); margin-left: 2ch; font-style: italic; }
+.cm-asm-error::before { content: '← '; }

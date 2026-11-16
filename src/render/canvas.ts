@@ -1,6 +1,6 @@
-/** A Canvas 2D renderer in the neon vector look: walls, floor items and the robot. */
+/** A Canvas 2D renderer in the neon vector look: walls, floor items, monsters and the robot. */
 
-import { DX, DY, lootAmount, TYPE, type ObjectRecord, type World } from '../core';
+import { DX, DY, lootAmount, Monster, monsterKind, TYPE, type ObjectRecord, type World } from '../core';
 import type { Renderer } from './index';
 
 const COLOR = {
@@ -13,6 +13,9 @@ const COLOR = {
   chip: '#ff4dd2',
   robot: '#39d0ff',
   dead: '#ff5a5a',
+  patrol: '#ff8a3d',
+  chaser: '#ff3d6e',
+  sentry: '#c77dff',
   unknown: '#ff8a3d',
 };
 
@@ -51,6 +54,10 @@ export class CanvasRenderer implements Renderer {
     for (let y = 0; y <= g.height; y++) { ctx.moveTo(0, y * cell + 0.5); ctx.lineTo(g.width * cell, y * cell + 0.5); }
     ctx.stroke();
 
+    const headings = new Map<number, number>();
+    for (const a of world.actors) {
+      if (a instanceof Monster && !a.destroyed) headings.set(a.y * g.width + a.x, a.heading);
+    }
     for (let y = 0; y < g.height; y++) {
       for (let x = 0; x < g.width; x++) {
         const px = x * cell, py = y * cell;
@@ -58,7 +65,9 @@ export class CanvasRenderer implements Renderer {
         if (floor.type) this.floorItem(floor, px, py, cell);
         const occ = g.get('occupant', x, y);
         if (occ.type === TYPE.ROBOT) this.robot(world, px, py, cell);
-        else if (occ.type) this.occupant(occ, px, py, cell);
+        else if (monsterKind(occ.type)) {
+          this.monster(occ, headings.get(y * g.width + x) ?? 0, px, py, cell);
+        } else if (occ.type) this.occupant(occ, px, py, cell);
       }
     }
   }
@@ -124,6 +133,49 @@ export class CanvasRenderer implements Renderer {
       ctx.strokeRect(px + 3, py + 3, s - 6, s - 6);
     } else {
       this.unknown(px, py, s);
+    }
+    ctx.restore();
+  }
+
+  /**
+   * A patrol is a square, a chaser a spiked diamond, both with a bar on the side they
+   * face; a sentry is a circle with a gun barrel pointing the way it faces.
+   */
+  private monster(o: ObjectRecord, heading: number, px: number, py: number, s: number): void {
+    const ctx = this.ctx;
+    const kind = monsterKind(o.type);
+    const color = o.type === TYPE.CHASER ? COLOR.chaser : o.type === TYPE.SENTRY ? COLOR.sentry : COLOR.patrol;
+    const cx = px + s / 2, cy = py + s / 2, r = s * 0.3;
+    const dx = DX[heading], dy = DY[heading];
+    ctx.save();
+    this.glow(color, 10);
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = 2;
+    // Hurt monsters dim with their HP.
+    ctx.globalAlpha = 0.45 + 0.55 * Math.min(1, o.hp / (kind?.hp ?? 255));
+    ctx.beginPath();
+    switch (o.type) {
+      case TYPE.CHASER:
+        for (let i = 0; i < 8; i++) {
+          const a = (i * Math.PI) / 4, k = i % 2 ? 0.55 : 1;
+          ctx.lineTo(cx + Math.sin(a) * r * k * 1.15, cy - Math.cos(a) * r * k * 1.15);
+        }
+        ctx.closePath();
+        break;
+      case TYPE.SENTRY:
+        ctx.arc(cx, cy, r * 0.8, 0, 2 * Math.PI);
+        ctx.moveTo(cx + dx * r * 0.8, cy + dy * r * 0.8);
+        ctx.lineTo(cx + dx * r * 1.5, cy + dy * r * 1.5);
+        break;
+      default:
+        ctx.rect(cx - r, cy - r, 2 * r, 2 * r);
+    }
+    ctx.stroke();
+    if (o.type !== TYPE.SENTRY) {
+      // Facing: a bar on that side.
+      ctx.fillRect(cx + dx * r * 0.75 - (dy ? r * 0.5 : 1.5), cy + dy * r * 0.75 - (dx ? r * 0.5 : 1.5),
+        dy ? r : 3, dx ? r : 3);
     }
     ctx.restore();
   }

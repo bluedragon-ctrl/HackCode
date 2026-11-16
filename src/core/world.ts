@@ -16,18 +16,26 @@ import type { RunResult, TrapInfo } from '../blue11';
 import { DRAIN, TICK_CYCLES } from './constants';
 import { Grid } from './grid';
 import { dropFor, TYPE } from './objects';
+import { Rng } from './rng';
 import { Robot, type RobotOptions } from './robot';
 
 /** A monster (or anything else) that acts once per tick, after the robot. */
 export interface Actor {
   readonly id: number;
   tick(world: World): void;
+  /** The cell whose occupant it is, if any: {@link World.damage} destroys it there. */
+  readonly x?: number;
+  readonly y?: number;
+  /** Destroyed actors no longer act. */
+  destroyed?: boolean;
 }
 
 export interface WorldOptions {
   width: number;
   height: number;
   robot: RobotOptions;
+  /** Seed of the world's random numbers (default 0). */
+  seed?: number;
 }
 
 export type TickReason =
@@ -49,12 +57,14 @@ export interface TickResult {
 export class World {
   readonly grid: Grid;
   readonly robot: Robot;
+  /** The world's random numbers: each monster seeds its own from it as it is added. */
+  readonly rng: Rng;
   /** Completed ticks. */
   tick = 0;
   /** Robot cycles already run in the current tick. */
   phase = 0;
 
-  private actors: Actor[] = [];
+  private readonly list: Actor[] = [];
   /** Instructions executed in the current tick (for the energy drain). */
   private tickInstructions = 0;
   /** Drain not yet charged, in 1/2^SHIFT energy units. */
@@ -62,14 +72,23 @@ export class World {
 
   constructor(opts: WorldOptions) {
     this.grid = new Grid(opts.width, opts.height);
+    this.rng = new Rng(opts.seed ?? 0);
     this.robot = new Robot(this, opts.robot);
   }
 
   /** Add an actor; they act in ascending ID order. IDs must be unique. */
   addActor(a: Actor): void {
-    if (this.actors.some((b) => b.id === a.id)) throw new Error(`actor ${a.id} exists`);
-    this.actors.push(a);
-    this.actors.sort((p, q) => p.id - q.id);
+    if (this.list.some((b) => b.id === a.id)) throw new Error(`actor ${a.id} exists`);
+    this.list.push(a);
+    this.list.sort((p, q) => p.id - q.id);
+  }
+
+  /** The actors, in ID order (destroyed ones included). */
+  get actors(): readonly Actor[] { return this.list; }
+
+  /** An ID above every actor's. */
+  nextActorId(): number {
+    return this.list.length ? this.list[this.list.length - 1].id + 1 : 1;
   }
 
   /**
@@ -146,7 +165,7 @@ export class World {
     this.tickInstructions = 0;
     // Robot devices, then monsters
     for (const d of robot.actions) d.endTick();
-    for (const a of this.actors) a.tick(this);
+    for (const a of this.list) if (!a.destroyed) a.tick(this);
     if (robot.hp === 0) robot.destroyed = true;
     this.tick++;
     this.phase -= TICK_CYCLES;
@@ -172,8 +191,8 @@ export class World {
 
   /**
    * Damage the occupant at (x, y). At 0 HP it is destroyed and its loot dropped on the
-   * floor (if the floor is free; coins add to coins). The robot's record stays, at 0 HP.
-   * Returns true if destroyed.
+   * floor (if the floor is free; coins add to coins), and an actor standing there is
+   * destroyed too. The robot's record stays, at 0 HP. Returns true if destroyed.
    */
   damage(x: number, y: number, amount: number): boolean {
     const o = this.grid.get('occupant', x, y);
@@ -186,6 +205,7 @@ export class World {
       return true;
     }
     this.grid.clear('occupant', x, y);
+    for (const a of this.list) if (!a.destroyed && a.x === x && a.y === y) a.destroyed = true;
     const drop = dropFor(o.loot);
     if (drop) {
       const floor = this.grid.get('floor', x, y);

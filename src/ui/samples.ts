@@ -1,6 +1,6 @@
 /**
- * The first playable map and a program that solves it with the raw wheel registers
- * (no BIOS yet). Legend: src/core/maps.ts.
+ * The first playable map and two programs that solve it: one with BIOS calls (the
+ * editor's default) and one with the raw wheel registers. Legend: src/core/maps.ts.
  */
 
 export const TEST_MAP = `

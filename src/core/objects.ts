@@ -22,6 +22,9 @@ export const TYPE = {
   CHARGER: 0o4,
   COIN: 0o10,
   CHIP: 0o11,
+  /** Monsters (src/core/monster.ts). */
+  PATROL: 0o40,
+  CHASER: 0o41,
 } as const;
 
 /** FLAGS bits. */

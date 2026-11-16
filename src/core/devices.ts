@@ -17,14 +17,19 @@ import {
   SCAN_RADIUS, SCAN_RANGE_SQ, TICKS, VECTOR,
 } from './constants';
 import { FLAG, TYPE, lootAmount, type ObjectRecord } from './objects';
+import type { Grid } from './grid';
 import type { Robot } from './robot';
 
 /** What starting or completing a step of an action leads to. */
-type Outcome = { ticks: number } | { error: number };
-const done: Outcome = { error: ERR.NONE };
+export type Outcome = { ticks: number } | { error: number };
+export const done: Outcome = { error: ERR.NONE };
 
-export abstract class ActionDevice implements Device {
-  readonly size = 8;
+/**
+ * The common CSR protocol of an action device (DESIGN.md §5), with nobody behind it: the
+ * robot's devices ({@link ActionDevice}) and the monsters' motors build on it.
+ */
+export abstract class CsrDevice implements Device {
+  readonly size: number = 8;
   abstract readonly base: number;
   abstract readonly vector: number;
 
@@ -35,8 +40,6 @@ export abstract class ActionDevice implements Device {
   protected fn = 0;
   /** Ticks until the current step completes; 0 = idle. */
   protected busy = 0;
-
-  constructor(protected readonly robot: Robot) {}
 
   attach(cpu: Cpu): void { this.cpu = cpu; }
 
@@ -91,19 +94,24 @@ export abstract class ActionDevice implements Device {
     if (this.csr & CSR.IE) this.cpu.interrupt(this.vector, DEVICE_LEVEL);
   }
 
-  /** Spend energy, or fail with "no power". */
-  protected charge(cost: number, then: Outcome): Outcome {
-    if (this.robot.energy < cost) return { error: ERR.POWER };
-    this.robot.energy -= cost;
-    return then;
-  }
-
   /** GO: start function `fn` (0–7). */
   protected abstract start(fn: number): Outcome;
   /** The current step's time is up: apply its effect. */
   protected abstract complete(): Outcome;
   protected readReg(_offset: number): number { return BUS_ERROR; }
   protected writeReg(_offset: number, _value: number, _byte: boolean): boolean { return false; }
+}
+
+/** A robot device: actions cost the robot's energy. */
+export abstract class ActionDevice extends CsrDevice {
+  constructor(protected readonly robot: Robot) { super(); }
+
+  /** Spend energy, or fail with "no power". */
+  protected charge(cost: number, then: Outcome): Outcome {
+    if (this.robot.energy < cost) return { error: ERR.POWER };
+    this.robot.energy -= cost;
+    return then;
+  }
 }
 
 /** A 16-bit register written by words or bytes. */
@@ -255,7 +263,7 @@ export function scan(robot: Robot, noWalls: boolean): Seen[] {
     for (let dx = -R; dx <= R; dx++) {
       const d = dx * dx + dy * dy;
       const x = robot.x + dx, y = robot.y + dy;
-      if (d > SCAN_RANGE_SQ || !grid.inBounds(x, y) || !lineOfSight(robot, dx, dy)) continue;
+      if (d > SCAN_RANGE_SQ || !grid.inBounds(x, y) || !lineOfSight(grid, robot.x, robot.y, dx, dy)) continue;
       const occ = grid.get('occupant', x, y);
       if (occ.type && d > 0 && !(noWalls && occ.type === TYPE.WALL)) out.push({ r: occ, dx, dy, d });
       const fl = grid.get('floor', x, y);
@@ -267,9 +275,8 @@ export function scan(robot: Robot, noWalls: boolean): Seen[] {
   return out.map(({ r, dx, dy }) => ({ r, dx, dy }));
 }
 
-/** No opaque occupant strictly between the robot and (dx, dy) on a Bresenham line. */
-function lineOfSight(robot: Robot, dx: number, dy: number): boolean {
-  const { grid } = robot.world;
+/** No opaque occupant strictly between (x0, y0) and (x0 + dx, y0 + dy) on a Bresenham line. */
+export function lineOfSight(grid: Grid, x0: number, y0: number, dx: number, dy: number): boolean {
   const sx = Math.sign(dx), sy = Math.sign(dy);
   const ax = Math.abs(dx), ay = Math.abs(dy);
   let x = 0, y = 0, e = ax - ay;
@@ -278,7 +285,7 @@ function lineOfSight(robot: Robot, dx: number, dy: number): boolean {
     if (e2 > -ay) { e -= ay; x += sx; }
     if (e2 < ax) { e += ax; y += sy; }
     if (x === dx && y === dy) return true;
-    if (grid.get('occupant', robot.x + x, robot.y + y).flags & FLAG.OPAQUE) return false;
+    if (grid.get('occupant', x0 + x, y0 + y).flags & FLAG.OPAQUE) return false;
   }
 }
 

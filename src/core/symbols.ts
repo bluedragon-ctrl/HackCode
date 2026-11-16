@@ -64,6 +64,8 @@ export const SYMBOLS: Readonly<Record<string, number>> = Object.freeze({
   'T.CHRG': TYPE.CHARGER,
   'T.COIN': TYPE.COIN,
   'T.CHIP': TYPE.CHIP,
+  'T.PTRL': TYPE.PATROL,
+  'T.CHSR': TYPE.CHASER,
   'F.MOB': FLAG.MOBILE,
   'F.HOST': FLAG.HOSTILE,
   'F.SOLD': FLAG.SOLID,

@@ -1,6 +1,8 @@
 /**
  * The first playable map and two programs that solve it: one with BIOS calls (the
  * editor's default) and one with the raw wheel registers. Legend: src/core/maps.ts.
+ * A patrol guards the coins in the room below the start, and a chaser waits in the
+ * pocket at the bottom right; neither is on the route to the exit.
  */
 
 export const TEST_MAP = `
@@ -11,10 +13,10 @@ export const TEST_MAP = `
 #.#####.#.E.#.#
 #.......#...#.#
 #.#####.##.##.#
-#.#...#.......#
+#.#P..#.......#
 #.#.3.#####.###
 #.#...#.....#.#
-#.##.##.###.#.#
+#.##.##.###.#H#
 #...........#.#
 #.#########.#C#
 #.......$.....#

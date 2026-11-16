@@ -107,6 +107,9 @@ export const COST = {
   GRAB: 2,
 } as const;
 
+/** Standard map size, 15×15 cells (DESIGN.md §2): lesson maps and the first expedition depths. */
+export const MAP_SIZE = 15;
+
 export const ENERGY_MAX = 10000;
 export const ROBOT_HP = 100;
 

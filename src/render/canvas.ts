@@ -28,29 +28,32 @@ export class CanvasRenderer implements Renderer {
   draw(world: World): void {
     const { canvas, ctx } = this;
     const g = world.grid;
-    // Fit the canvas to its box at the device's pixel density.
+    // Square cells, as large as the parent's width and the rest of the window's height allow.
     const dpr = window.devicePixelRatio || 1;
-    const cssW = canvas.clientWidth || 600;
-    const cell = Math.max(4, Math.floor(cssW / g.width));
-    const cssH = cell * g.height;
+    const box = canvas.parentElement;
+    const pad = box ? parseFloat(getComputedStyle(box).paddingLeft) * 2 : 0;
+    const availW = (box ? box.clientWidth - pad : canvas.clientWidth) || 600;
+    const availH = window.innerHeight - canvas.getBoundingClientRect().top - 24;
+    const cell = Math.max(8, Math.floor(Math.min(availW / g.width, availH / g.height)));
+    const cssW = cell * g.width, cssH = cell * g.height;
+    canvas.style.width = `${cssW}px`;
     canvas.style.height = `${cssH}px`;
     const w = Math.round(cssW * dpr), h = Math.round(cssH * dpr);
     if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const ox = Math.floor((cssW - cell * g.width) / 2);
 
     ctx.fillStyle = COLOR.bg;
     ctx.fillRect(0, 0, cssW, cssH);
     ctx.strokeStyle = COLOR.grid;
     ctx.lineWidth = 1;
     ctx.beginPath();
-    for (let x = 0; x <= g.width; x++) { ctx.moveTo(ox + x * cell + 0.5, 0); ctx.lineTo(ox + x * cell + 0.5, cssH); }
-    for (let y = 0; y <= g.height; y++) { ctx.moveTo(ox, y * cell + 0.5); ctx.lineTo(ox + g.width * cell, y * cell + 0.5); }
+    for (let x = 0; x <= g.width; x++) { ctx.moveTo(x * cell + 0.5, 0); ctx.lineTo(x * cell + 0.5, cssH); }
+    for (let y = 0; y <= g.height; y++) { ctx.moveTo(0, y * cell + 0.5); ctx.lineTo(g.width * cell, y * cell + 0.5); }
     ctx.stroke();
 
     for (let y = 0; y < g.height; y++) {
       for (let x = 0; x < g.width; x++) {
-        const px = ox + x * cell, py = y * cell;
+        const px = x * cell, py = y * cell;
         const floor = g.get('floor', x, y);
         if (floor.type) this.floorItem(floor, px, py, cell);
         const occ = g.get('occupant', x, y);

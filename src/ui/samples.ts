@@ -4,15 +4,21 @@
  */
 
 export const TEST_MAP = `
-##############
-#>....#......#
-#####.#.####.#
-#$....#.#..#.#
-#.#####.#E.#.#
-#..5....#..#.#
-#.#####.##.#.#
-#............#
-##############
+###############
+#>....#.......#
+#####.#.#####.#
+#$....#.#...#.#
+#.#####.#.E.#.#
+#.......#...#.#
+#.#####.##.##.#
+#.#...#.......#
+#.#.3.#####.###
+#.#...#.....#.#
+#.##.##.###.#.#
+#...........#.#
+#.#########.#C#
+#.......$.....#
+###############
 `;
 
 export const TEST_PROGRAM = `; Drive to the exit with the raw wheel registers.
@@ -33,7 +39,7 @@ POLL:   TSTB @#WHLCSR       ; READY is bit 7, the sign of the low byte
 DONE:   HALT
 
 PATH:   .WORD 4, WH.FWD, 1, WH.RGT, 2, WH.FWD, 1, WH.RGT
-        .WORD 4, WH.FWD, 1, WH.LFT, 4, WH.FWD, 1, WH.LFT
-        .WORD 9., WH.FWD, 1, WH.LFT, 3, WH.FWD, 1, WH.LFT
-        .WORD 1, WH.FWD, 0
+        .WORD 4, WH.FWD, 1, WH.LFT, 2, WH.FWD, 1, WH.LFT
+        .WORD 6, WH.FWD, 1, WH.RGT, 2, WH.FWD, 1, WH.LFT
+        .WORD 3, WH.FWD, 1, WH.LFT, 3, WH.FWD, 0
 `;

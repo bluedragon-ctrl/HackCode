@@ -1,9 +1,15 @@
 /** The play session behind the page: Run / Continue / Step / Step tick, and the first map. */
 import { describe, expect, it } from 'vitest';
+import { MAP_SIZE } from '../../src/core';
 import { Session } from '../../src/ui/session';
 import { TEST_MAP, TEST_PROGRAM } from '../../src/ui/samples';
 
 describe('session', () => {
+  it('the test map is the standard size', () => {
+    const g = new Session(TEST_MAP).world.grid;
+    expect([g.width, g.height]).toEqual([MAP_SIZE, MAP_SIZE]);
+  });
+
   it('the sample program drives the robot to the exit of the test map with raw registers', () => {
     const s = new Session(TEST_MAP);
     expect(s.load(TEST_PROGRAM)).toEqual([]);

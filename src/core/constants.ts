@@ -27,6 +27,14 @@ export const REG = {
   RCSR: 0o177560, RBUF: 0o177562, XCSR: 0o177564, XBUF: 0o177566,
 } as const;
 
+/**
+ * BIOS calls: `EMT n` (DESIGN.md §4 "BIOS"). The source is src/core/bios.ts. The EMT
+ * vector (030) is set to the BIOS on every load.
+ */
+export const BIOS_CALL = {
+  MOVE: 0, BACK: 1, LEFT: 2, RIGHT: 3, FIRE: 4, SCAN: 5, GRAB: 6, DROP: 7, PRINT: 0o10,
+} as const;
+
 /** Interrupt vectors (bus level {@link DEVICE_LEVEL}). */
 export const VECTOR = {
   WHEELS: 0o300,

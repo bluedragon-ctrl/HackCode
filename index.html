@@ -20,6 +20,12 @@
           <button id="step" title="One instruction">Step</button>
           <button id="step-tick" title="The rest of this tick">Step tick</button>
           <button id="reset" class="secondary" title="Rebuild the map; the program stays in the editor">Reset map</button>
+          <select id="example" title="Replace the editor's program with an example">
+            <option value="">Examples…</option>
+            <option value="bios">BIOS calls (EMT)</option>
+            <option value="raw">Raw device registers</option>
+          </select>
+          <button id="show-bios" class="secondary" title="Read the BIOS source">BIOS</button>
           <label class="speed">Speed
             <select id="speed">
               <option value="5">5 ticks/s</option>
@@ -51,6 +57,10 @@
         </div>
       </section>
     </main>
+    <dialog id="bios">
+      <div class="toolbar"><h2>BIOS source — ROM at 140000</h2><button id="close-bios" class="secondary">Close</button></div>
+      <pre id="bios-source"></pre>
+    </dialog>
     <script type="module" src="./src/main.ts"></script>
   </body>
 </html>

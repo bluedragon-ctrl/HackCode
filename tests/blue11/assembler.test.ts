@@ -140,6 +140,14 @@ W:      .WORD 1`);
     expect(a.symbols.get('W')).toBe(0o1000 + 12 + 4 + 4);
   });
 
+  it('a comment may mention .ASCII / .ASCIZ / .BYTE', () => {
+    const a = assemble(`; R0 = text (.ASCIZ), "quoted" / slashed
+        CLR R0          ; ends with .ASCII /x
+        .ASCIZ /A;B/    ; .ASCIZ in a comment after .ASCIZ`);
+    expect(a.errors).toEqual([]);
+    expect([...a.bytes]).toEqual([0o000, 0o012, 65, 59, 66, 0]);
+  });
+
   it('.END sets the start address and stops', () => {
     const a = assemble(' .WORD 0\nGO: HALT\n .END GO\n garbage here');
     expect(a.ok).toBe(true);

@@ -152,8 +152,34 @@ SP = origin. RAM, the world and time persist; "clear RAM" zeroes RAM first.
 
 ### BIOS
 
-`EMT n` calls give beginners high-level actions (move, turn, fire, scan, grab). The BIOS is
-itself Blue-11 code using only the raw device registers, so students can later read its source.
+`EMT n` calls give beginners high-level actions. The BIOS is itself Blue-11 code using only
+the raw device registers, in ROM from `140000`; its source (`src/core/bios.ts`) is shown to
+the player (the BIOS button) for later lessons.
+
+| call | `EMT` | in | out on success |
+|---|---|---|---|
+| `MOVE` | 0 | R0 = cells forward | R0 = 0 |
+| `BACK` | 1 | R0 = cells back | R0 = 0 |
+| `LEFT` / `RIGHT` | 2 / 3 | – | R0 = 0 |
+| `FIRE` | 4 | – | R0 = distance of the hit, 0 = none |
+| `SCAN` | 5 | R0 = buffer, R1 = length (all objects) | R0 = buffer |
+| `GRAB` | 6 | – | R0 = inventory slot, or −1 for coins |
+| `DROP` | 7 | R0 = slot | R0 = 0 |
+| `PRINT` | 10 | R0 = `.ASCIZ` text | R0 = 0 (on the console) |
+
+Conventions (as RT-11's system calls):
+
+- **Success clears C; failure sets C and R0 = the device's error code** (`ER.BLK`, …), so
+  `BCS` right after the `EMT` catches it. An unknown call number fails with `ER.FN`.
+- **Every register except R0 is kept**, and the stack is balanced (the caller's PSW comes
+  back by `RTI`, with only C changed).
+- A call **waits for its device**: first until it is idle (a program may have left it busy),
+  then until the action is done, by polling READY. It writes the CSR without IE, so that
+  device's interrupts are off afterwards. Polling costs energy like any loop; interrupts and
+  `WAIT` are the cheaper, advanced way (lesson 7).
+- The **EMT vector** (`030`) is set on every load to the BIOS entry with PSW 0 (priority 0),
+  before the program is copied in, so a program may install its own EMT handler.
+- The call names are predefined symbols, so they cannot be used as labels.
 
 ## 5. Devices (memory-mapped)
 
@@ -264,6 +290,6 @@ difficulty rising with depth. Scoring *later* (ticks, energy, coins).
 
 ## 10. Open items
 
-- BIOS contents (the ROM is empty so far), monsters' machines and devices, chargers,
+- Monsters' machines and devices, chargers,
   unlocking EIS with the math chip. Timings and energy costs are first guesses, to be
   tuned in play.

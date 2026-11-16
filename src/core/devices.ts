@@ -19,6 +19,7 @@ import {
 import { FLAG, TYPE, lootAmount, type ObjectRecord } from './objects';
 import type { Grid } from './grid';
 import type { Robot } from './robot';
+import type { World } from './world';
 
 /** What starting or completing a step of an action leads to. */
 export type Outcome = { ticks: number } | { error: number };
@@ -178,23 +179,30 @@ export class Laser extends ActionDevice {
 
   protected complete(): Outcome {
     const { x, y, heading, world } = this.robot;
-    this.distance = 0;
-    for (let d = 1; d <= LASER_RANGE; d++) {
-      const cx = x + DX[heading] * d, cy = y + DY[heading] * d;
-      if (!world.grid.inBounds(cx, cy)) break;
-      const o = world.grid.get('occupant', cx, cy);
-      if (o.type && o.flags & (FLAG.SOLID | FLAG.OPAQUE)) {
-        this.distance = d;
-        world.damage(cx, cy, LASER_DAMAGE);
-        break;
-      }
-    }
+    this.distance = beam(world, x, y, heading, LASER_RANGE, LASER_DAMAGE);
     return done;
   }
 
   protected readReg(offset: number): number { return offset === 4 ? this.distance : BUS_ERROR; }
   protected writeReg(offset: number): boolean { return offset >> 1 === 2; }
   reset(): void { super.reset(); this.distance = 0; }
+}
+
+/**
+ * A laser beam from (x, y) up to `range` cells along `heading`: the first solid or opaque
+ * occupant takes `damage`. Returns the distance of the hit, 0 = nothing hit.
+ */
+export function beam(world: World, x: number, y: number, heading: number, range: number, damage: number): number {
+  for (let d = 1; d <= range; d++) {
+    const cx = x + DX[heading] * d, cy = y + DY[heading] * d;
+    if (!world.grid.inBounds(cx, cy)) return 0;
+    const o = world.grid.get('occupant', cx, cy);
+    if (o.type && o.flags & (FLAG.SOLID | FLAG.OPAQUE)) {
+      world.damage(cx, cy, damage);
+      return d;
+    }
+  }
+  return 0;
 }
 
 // ---------------------------------------------------------------- scanner

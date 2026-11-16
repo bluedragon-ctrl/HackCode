@@ -66,7 +66,8 @@ Walls are destructible (e.g. `TYPE=1, HP=255, FLAGS=00001100`).
 | 11 | math chip | floor | collectible |
 | 40 | patrol | occupant | monster (§6) |
 | 41 | chaser | occupant | monster (§6) |
-| 42–77 | monsters | occupant | reserved |
+| 42 | sentry | occupant | monster (§6) |
+| 43–77 | monsters | occupant | reserved |
 
 LOOT types: 0 none, 1 coins (amount = bits 3–0), 2 math chip. A destroyed object leaves
 its loot on the floor if the floor is free (coins on coins add up, at most 15).
@@ -83,7 +84,7 @@ editor; the odd size gives a centre cell, (7, 7). The grid itself allows up to 2
 
 Hand-made maps are text, one character per cell (`src/core/maps.ts`): `#` wall, `.` floor,
 `E` exit, `$` one coin, `1`–`9` a coin pile, `C` math chip, `^ > v <` the robot and its
-heading, `P` a patrol, `H` a chaser (monsters start facing north and get their IDs in reading
+heading, `P` a patrol, `H` a chaser, `S` a sentry (monsters start facing north and get their IDs in reading
 order). A plain map is won when the robot stands on the exit.
 
 Randomness: the world has one seeded `Rng` (`WorldOptions.seed`, `MapOptions.seed`, default
@@ -262,7 +263,7 @@ The player gets all these names (and `CS.GO CS.FN CS.IE CS.RDY CS.ERR`, the func
 codes pre-shifted to bits 3–1 — `WH.FWD WH.LFT WH.RGT WH.BAK LS.FIR SC.ALL SC.NWL GR.GRB
 GR.DRP` —, the vectors `WHLVEC LSRVEC SCNVEC GRBVEC LKSVEC RCVVEC XMTVEC`, the error codes,
 headings `H.N H.E H.S H.W`, types `T.WALL T.ROBO T.EXIT T.CHRG T.COIN T.CHIP`, flags
-`F.MOB F.HOST F.SOLD F.OPAQ F.COLL F.INTR`, monster types `T.PTRL T.CHSR`, and `LKS RCSR RBUF XCSR XBUF PSW`) as
+`F.MOB F.HOST F.SOLD F.OPAQ F.COLL F.INTR`, monster types `T.PTRL T.CHSR T.SNTR`, and `LKS RCSR RBUF XCSR XBUF PSW`) as
 predefined symbols: `src/core/symbols.ts`. Example: `MOV #WH.RGT!CS.GO!CS.IE, @#WHLCSR`.
 
 ## 6. Monsters
@@ -276,6 +277,7 @@ and written to be read: players will hack them later.
 |---|---|
 | `000000–007777` | 4 KB RAM: script from `1000`, stack below it |
 | `176400 MOTCSR`, `176402 MOTERR` | motor, vector 300 (`MOTVEC`): the common CSR layout (§5) |
+| `176410 LSRCSR`, `LSRERR`, `LSRDST` | laser, only for kinds that have one, vector 304 (`LSRVEC`): as the robot's |
 | `176440 MYX`, `MYY`, `MYHDG`, `MYHP` | sensor, read-only: its own position, heading, HP |
 | `176450 SEE`, `RBTDX`, `RBTDY` | 1 when the robot is in sight; then the robot's offset (signed) |
 | `176456 AHEAD` | TYPE of the occupant in front (`T.WALL` at the edge) |
@@ -286,10 +288,15 @@ and written to be read: players will hack them later.
   fails with `ER.BLK`. Monsters use no energy.
 - **Sight** is the robot scanner's: dx² + dy² ≤ 25 and a line of sight.
 - **Tick:** after the robot's devices, in ID order, each monster's CPU runs 200 cycles (an
-  overshoot is carried over), then its motor counts down and completes. A monster that
-  halts, crashes or sleeps with nothing to wake it stands still; the world goes on.
-- **Contact damage:** a monster moving into the robot bites it for the kind's contact damage
-  (the move fails with `ER.BLK`). The robot walking into a monster is just blocked.
+  overshoot is carried over), then its motor and laser count down and complete. A monster
+  that halts, crashes or sleeps with nothing to wake it stands still; the world goes on.
+- **Contact damage** is the close-up attack: a monster moving into the robot bites it for
+  the kind's contact damage (the move fails with `ER.BLK`). The robot walking into a monster
+  is just blocked.
+- **Monster laser** is the ranged attack: `LS.FIR` fires along the heading when it completes
+  (after the kind's fire ticks), with the robot's beam rules (the first solid or opaque
+  occupant is hit, walls and other monsters too; `LSRDST` = distance). Then it stays busy
+  reloading; READY comes back after the kind's reload ticks.
 - **Laser damage:** the robot's laser (40) damages monsters like any object; at 0 HP the
   monster is destroyed (`World.damage` destroys the actor in that cell, which stops acting)
   and drops its loot.
@@ -298,8 +305,12 @@ and written to be read: players will hack them later.
 |---|---|---|---|---|---|---|---|
 | patrol | 40 `T.PTRL` | `P` | 40 | 10 | 4 / 1 | 2 coins | walk ahead until blocked, then turn right |
 | chaser | 41 `T.CHSR` | `H` | 80 | 20 | 6 / 1 | 5 coins | step towards the robot in sight along the longer axis; else wander at random |
+| sentry | 42 `T.SNTR` | `S` | 40 | – | – / 1 | 3 coins | stand still; when the robot is in its row or column within laser reach, face it and fire |
 
-The chaser is slower than the robot (4 ticks per cell), so the robot can get away.
+The sentry's laser: 15 damage, 3 cells, 3 ticks to fire, 6 to reload (one shot per 9 ticks).
+The chaser is slower than the robot (4 ticks per cell), so the robot can get away; walls
+give cover from a sentry, and one robot shot (40) destroys it.
+*Later:* more kinds with other behaviours.
 *Later:* a probe device to read and patch monster code ("hacking").
 
 ## 7. Lessons (mode 1)

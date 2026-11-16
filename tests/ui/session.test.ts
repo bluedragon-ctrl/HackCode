@@ -27,10 +27,10 @@ describe('session', () => {
     expect(s.world.robot.hp).toBe(ROBOT_HP); // the monsters never reached it
   });
 
-  it('the test map has a patrol guarding the coins and a chaser', () => {
+  it('the test map has a patrol guarding the coins, a sentry and a chaser', () => {
     const s = new Session(TEST_MAP);
     const kinds = s.world.actors.map((a) => (a as Monster).kind.name);
-    expect(kinds).toEqual(['patrol', 'chaser']);
+    expect(kinds).toEqual(['patrol', 'sentry', 'chaser']);
     s.load(' 1$: BR 1$');
     s.run(200);
     const [p] = s.world.actors as Monster[];

@@ -4,7 +4,7 @@
  *   #  wall                 .  floor (a space too)
  *   E  exit                 $  a coin       1–9  a pile of that many coins
  *   C  math chip            ^ > v <  the robot, facing N E S W (exactly one)
- *   P  a patrol             H  a chaser (monsters start facing north)
+ *   P  a patrol   H  a chaser   S  a sentry   (monsters start facing north)
  *
  * Leading and trailing blank lines are ignored; all rows must have the same length.
  * Monsters get their actor IDs in reading order.
@@ -17,7 +17,7 @@ import type { RobotOptions } from './robot';
 import { World } from './world';
 
 const ROBOT: Readonly<Record<string, number>> = { '^': HEADING.N, '>': HEADING.E, v: HEADING.S, '<': HEADING.W };
-const MONSTER: Readonly<Record<string, MonsterKind>> = { P: MONSTERS.patrol, H: MONSTERS.chaser };
+const MONSTER: Readonly<Record<string, MonsterKind>> = { P: MONSTERS.patrol, H: MONSTERS.chaser, S: MONSTERS.sentry };
 
 export interface MapOptions {
   /** Robot energy and HP at the start (defaults: full). */

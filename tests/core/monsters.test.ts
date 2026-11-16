@@ -1,7 +1,7 @@
 /** Monsters: their machines, behaviour scripts, contact and laser damage, loot (DESIGN.md §6). */
 import { describe, expect, it } from 'vitest';
 import {
-  addMonster, FLAG, HEADING, LOOT, loot, Monster, MONSTER_MEMORY, MONSTER_SYMBOLS, MONSTERS, monsterScript,
+  addMonster, FLAG, HEADING, LOOT, loot, Monster, MONSTER_MEMORY, MONSTER_REG, MONSTER_SYMBOLS, MONSTERS, monsterScript,
   OBJECTS, parseMap, scan, SYMBOLS, type World,
 } from '../../src/core';
 import { asm } from './helpers';
@@ -75,6 +75,7 @@ describe('monster types', () => {
     expect(MONSTERS.patrol.record.loot).toBe(loot(LOOT.COINS, 2));
     expect(SYMBOLS['T.PTRL']).toBe(MONSTERS.patrol.type);
     expect(SYMBOLS['T.CHSR']).toBe(MONSTERS.chaser.type);
+    expect(SYMBOLS['T.SNTR']).toBe(MONSTERS.sentry.type);
   });
 
   it('each script assembles with the monster prelude and fits the machine', () => {
@@ -220,6 +221,108 @@ describe('chaser', () => {
       w.runTick();
       expect(w.grid.get('occupant', c.x, c.y)).toEqual(MONSTERS.chaser.record);
     }
+  });
+});
+
+describe('sentry', () => {
+  const S = MONSTERS.sentry;
+  const L = S.laser!;
+
+  it('has a laser; the other kinds have none', () => {
+    expect(L.range).toBe(3);
+    expect(MONSTERS.patrol.laser).toBeUndefined();
+    const w = start(RING);
+    expect(monsters(w)[0].machine.read(MONSTER_REG.LSRCSR, false)).toBeLessThan(0); // bus error
+  });
+
+  it('turns to the robot in its row and shoots it, then reloads', () => {
+    const w = start(`
+######
+#>..S#
+######
+`);
+    const [s] = monsters(w);
+    const first = S.turnTicks + L.ticks;
+    w.run(first - 1);
+    expect(w.robot.hp).toBe(100);
+    w.run(1);
+    expect(w.robot.hp).toBe(100 - L.damage);
+    expect(s.heading).toBe(HEADING.W);
+    w.run(L.ticks + L.reload - 1);
+    expect(w.robot.hp).toBe(100 - L.damage);
+    w.run(1);
+    expect(w.robot.hp).toBe(100 - 2 * L.damage);
+    expect([s.x, s.y]).toEqual([4, 1]); // it never moves
+  });
+
+  it('shoots along a column too', () => {
+    const w = start(`
+###
+#S#
+#.#
+#^#
+###
+`);
+    w.run(S.turnTicks * 2 + L.ticks);
+    expect(w.robot.hp).toBe(100 - L.damage);
+    expect(monsters(w)[0].heading).toBe(HEADING.S);
+  });
+
+  it('holds fire beyond its range, off its row and column, and behind cover', () => {
+    for (const map of [`
+#######
+#>...S#
+#######
+`, `
+#####
+#>..#
+#...#
+#..S#
+#####
+`, `
+######
+#>#.S#
+######
+`]) {
+      const w = start(map);
+      w.run(60);
+      expect(w.robot.hp, map).toBe(100);
+    }
+  });
+
+  it('one robot shot destroys it before it fires, and it drops its coins', () => {
+    const w = start(`
+####
+#>S#
+####
+`, ` EMT FIRE
+ HALT`);
+    w.run(20);
+    expect(monsters(w)[0].destroyed).toBe(true);
+    expect(w.robot.hp).toBe(100);
+    expect(w.grid.get('floor', 2, 1)).toEqual(OBJECTS.coins(3));
+  });
+
+  it('behaves the same from the same seed', () => {
+    const map = `
+#######
+#.....#
+#..S..#
+#.....#
+#>....#
+#######
+`;
+    const a = start(map, ` MOV #1, R0
+1$: EMT MOVE
+ EMT LEFT
+ BR 1$`, 5);
+    const b = start(map, ` MOV #1, R0
+1$: EMT MOVE
+ EMT LEFT
+ BR 1$`, 5);
+    const ta = trail(a, 120), tb = trail(b, 120);
+    expect(ta).toEqual(tb);
+    expect(a.robot.hp).toBe(b.robot.hp);
   });
 });
 

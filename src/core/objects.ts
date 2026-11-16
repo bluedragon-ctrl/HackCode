@@ -25,6 +25,7 @@ export const TYPE = {
   /** Monsters (src/core/monster.ts). */
   PATROL: 0o40,
   CHASER: 0o41,
+  SENTRY: 0o42,
 } as const;
 
 /** FLAGS bits. */

@@ -13,13 +13,31 @@ header { display: flex; align-items: baseline; gap: 1rem; padding: 0.75rem 1.25r
 h1 { margin: 0; font-size: 1.4rem; color: var(--accent); text-shadow: 0 0 8px var(--accent); }
 h2 { font-size: 0.9rem; margin: 0.75rem 0 0.25rem; color: var(--accent); }
 .tag { opacity: 0.6; font-size: 0.85rem; }
-main { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; padding: 1rem 1.25rem; }
-@media (max-width: 800px) { main { grid-template-columns: 1fr; } }
+main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) 15rem; gap: 1rem; padding: 1rem 1.25rem; align-items: start; }
+@media (max-width: 1100px) {
+  main { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .side { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, 1fr); column-gap: 0.75rem; }
+}
+@media (max-width: 800px) { main { grid-template-columns: 1fr; } .side { display: block; } }
 .pane { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 0.75rem; min-width: 0; }
 .toolbar { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem; }
 button { background: transparent; color: var(--accent); border: 1px solid var(--accent); border-radius: 4px; padding: 0.3rem 1rem; font: inherit; cursor: pointer; }
 button:hover { background: #39d0ff22; }
-#status { font-size: 0.85rem; }
+button.secondary { color: var(--fg); border-color: var(--line); }
+button:disabled { opacity: 0.35; cursor: default; background: transparent; }
+.toolbar { flex-wrap: wrap; gap: 0.5rem; }
+.speed { margin-left: auto; font-size: 0.85rem; opacity: 0.8; }
+select { background: var(--panel); color: var(--fg); border: 1px solid var(--line); font: inherit; }
+#status { font-size: 0.85rem; min-height: 1.3em; margin-bottom: 0.5rem; }
 #status.error { color: var(--warn); }
-#editor .cm-editor { height: 60vh; border: 1px solid var(--line); }
+#status.win { color: #4dff9a; text-shadow: 0 0 6px #4dff9a; }
+main > .code { display: flex; flex-direction: column; height: calc(100vh - 5.5rem); min-height: 24rem; }
+#editor { flex: 1; min-height: 0; }
+#editor .cm-editor { height: 100%; border: 1px solid var(--line); }
+.board { display: flex; justify-content: center; }
+#map { display: block; }
+.bar { height: 6px; background: #000; border: 1px solid var(--line); margin-bottom: 0.25rem; }
+#energy-bar { height: 100%; background: #4dff9a; box-shadow: 0 0 6px #4dff9a; }
+#output { min-height: 2rem; max-height: 10rem; overflow: auto; }
+.side h2:first-child { margin-top: 0; }
 pre { margin: 0; padding: 0.5rem; background: #000; border: 1px solid var(--line); min-height: 3rem; white-space: pre-wrap; }

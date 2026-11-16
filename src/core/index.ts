@@ -12,3 +12,4 @@ export { ActionDevice, Grabber, Inventory, Laser, Scanner, Status, Wheels, scan,
 export { Robot, Rom, type LoadOptions, type RobotOptions } from './robot';
 export { World, type Actor, type TickReason, type TickResult, type WorldOptions } from './world';
 export { SYMBOLS } from './symbols';
+export { parseMap, type MapOptions } from './maps';

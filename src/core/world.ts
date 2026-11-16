@@ -154,6 +154,11 @@ export class World {
 
   // ---------------------------------------------------------------- world rules
 
+  /** The robot stands on the exit (the win condition of a plain map). */
+  get atExit(): boolean {
+    return this.grid.typeAt('floor', this.robot.x, this.robot.y) === TYPE.EXIT;
+  }
+
   /** Move the robot to (x, y) if the cell is inside and has no occupant. */
   moveRobot(x: number, y: number): boolean {
     const r = this.robot;

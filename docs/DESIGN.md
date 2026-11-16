@@ -19,7 +19,7 @@ Status: agreed design, v1 scope. Items marked *later* are out of scope for v1.
 src/blue11/   CPU, assembler, disassembler, device bus   (library: imports nothing from the game)
 src/core/     simulation: world, entities, robot devices, ticks, dungeon generator, seeded RNG
               pure TypeScript, deterministic, no DOM — unit-tested
-src/render/   PixiJS renderer (top-down 2D vector/neon look), behind a small interface
+src/render/   top-down 2D renderer (vector/neon look) behind a small interface: Canvas 2D now, PixiJS later
 src/ui/       editor (CodeMirror 6), debugger panels, lesson flow
 ```
 
@@ -73,6 +73,15 @@ Monsters have additional **private state** (facing, cooldowns, AI state) in thei
 machine's RAM; the 4-byte record is the public view returned by the scanner.
 
 Coordinates are **absolute** (X east, Y south).
+
+**Map size: 15×15 cells** (`MAP_SIZE`), outer walls included, so X and Y run 0–16 (octal).
+Lesson maps are at most this size and the expedition starts at it (deeper levels may grow
+*later*, with a camera that follows the robot). The whole map fits on one screen beside the
+editor; the odd size gives a centre cell, (7, 7). The grid itself allows up to 256×256.
+
+Hand-made maps are text, one character per cell (`src/core/maps.ts`): `#` wall, `.` floor,
+`E` exit, `$` one coin, `1`–`9` a coin pile, `C` math chip, `^ > v <` the robot and its
+heading. A plain map is won when the robot stands on the exit.
 
 ## 3. Execution model — deterministic ticks
 

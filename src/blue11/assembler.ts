@@ -607,7 +607,7 @@ class Assembler {
         continue;
       }
       const chunks: string[] = [];
-      if (l.code || (l.address % 2 === 0 && l.bytes.length % 2 === 0 && !isText(src))) {
+      if (l.code || (l.address % 2 === 0 && l.bytes.length % 2 === 0 && !isText(stripComment(src)))) {
         // Words, three per row.
         for (let i = 0; i < l.bytes.length; i += 6) {
           const ws: string[] = [];
@@ -634,26 +634,25 @@ function isText(src: string): boolean {
 
 /** Remove a `;` comment, leaving `;` inside .ASCII text and character literals alone. */
 function stripComment(line: string): string {
-  const m = /\.ASCI[IZ]\b/i.exec(line);
-  let i = 0;
-  if (m) {
-    // Skip over the delimited text after .ASCII / .ASCIZ.
-    i = m.index + m[0].length;
-    while (i < line.length) {
-      const ch = line[i];
-      if (/\s/.test(ch)) { i++; continue; }
-      if (ch === ';') break;
-      const close = ch === '<' ? '>' : ch;
-      const end = line.indexOf(close, i + 1);
-      if (end < 0) return line.trimEnd();
-      i = end + 1;
-    }
-  }
-  for (; i < line.length; i++) {
+  for (let i = 0; i < line.length; i++) {
     const ch = line[i];
     if (ch === "'") { i++; continue; }
     if (ch === '"') { i += 2; continue; }
     if (ch === ';') return line.slice(0, i).trimEnd();
+    const m = ch === '.' ? /^\.ASCI[IZ](?![A-Z0-9.$])/i.exec(line.slice(i)) : null;
+    if (!m) continue;
+    // Skip over the delimited text after .ASCII / .ASCIZ (outside a comment only).
+    i += m[0].length;
+    while (i < line.length) {
+      const c = line[i];
+      if (/\s/.test(c)) { i++; continue; }
+      if (c === ';') break;
+      const close = c === '<' ? '>' : c;
+      const end = line.indexOf(close, i + 1);
+      if (end < 0) return line.trimEnd();
+      i = end + 1;
+    }
+    i--; // the loop's i++ lands on the ';' or the end
   }
   return line.trimEnd();
 }

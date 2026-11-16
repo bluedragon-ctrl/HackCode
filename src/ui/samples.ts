@@ -43,3 +43,40 @@ PATH:   .WORD 4, WH.FWD, 1, WH.RGT, 2, WH.FWD, 1, WH.RGT
         .WORD 6, WH.FWD, 1, WH.RGT, 2, WH.FWD, 1, WH.LFT
         .WORD 3, WH.FWD, 1, WH.LFT, 3, WH.FWD, 0
 `;
+
+/** The same route with BIOS calls: MOV the cell count to R0, then EMT. */
+export const BIOS_PROGRAM = `; Drive to the exit with BIOS calls.
+; EMT MOVE goes R0 cells forward; EMT LEFT / EMT RIGHT turn.
+; A failed call sets C: BCS catches it.
+
+        MOV #4, R0
+        EMT MOVE
+        EMT RIGHT
+        MOV #2, R0
+        EMT MOVE
+        EMT RIGHT
+        MOV #4, R0
+        EMT MOVE
+        EMT LEFT
+        MOV #2, R0
+        EMT MOVE
+        EMT LEFT
+        MOV #6, R0
+        EMT MOVE
+        EMT RIGHT
+        MOV #2, R0
+        EMT MOVE
+        EMT LEFT
+        MOV #3, R0
+        EMT MOVE
+        EMT LEFT
+        MOV #3, R0
+        EMT MOVE
+        BCS OOPS
+        HALT
+
+OOPS:   MOV #MSG, R0
+        EMT PRINT
+        HALT
+MSG:    .ASCIZ /BLOCKED!/
+`;

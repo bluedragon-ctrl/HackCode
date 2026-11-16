@@ -3,7 +3,7 @@
  * object record on the grid) and its Blue-11 machine (DESIGN.md §4):
  *
  *   000000–137777  RAM (vectors from 0, program from 1000 by default)
- *   140000–157777  ROM (BIOS); writes are bus errors
+ *   140000–157777  ROM: the BIOS (src/core/bios.ts); writes are bus errors
  *   1764xx         robot devices
  *   177546         KW11-L line clock, one tick per game tick of CPU time
  *   177560         DL11 console
@@ -11,7 +11,8 @@
  * EIS is off.
  */
 
-import { BUS_ERROR, DeviceMachine, DL11, KW11L, type AssembleResult, type Cpu, type Device } from '../blue11';
+import { BUS_ERROR, DeviceMachine, DL11, KW11L, VEC, type AssembleResult, type Cpu, type Device } from '../blue11';
+import { bios, biosEntry } from './bios';
 import { ENERGY_MAX, MEMORY, ROBOT_HP, TICK_CYCLES } from './constants';
 import { Grabber, Inventory, Laser, Scanner, Status, Wheels, type ActionDevice } from './devices';
 import { FLAG, record, TYPE } from './objects';
@@ -90,6 +91,8 @@ export class Robot {
     this.actions = [this.wheels, this.laser, this.scanner, this.grabber];
     this.devices = [this.rom, ...this.actions, new Status(this), new Inventory(this), this.clock, this.console];
     for (const d of this.devices) this.machine.add(d);
+    const b = bios();
+    this.rom.load(b.bytes, b.origin - MEMORY.ROM_BASE);
     world.grid.set('occupant', this.x, this.y,
       record(TYPE.ROBOT, opts.hp ?? ROBOT_HP, FLAG.MOBILE | FLAG.SOLID | FLAG.OPAQUE));
   }
@@ -100,8 +103,9 @@ export class Robot {
   get hp(): number { return this.world.grid.get('occupant', this.x, this.y).hp; }
 
   /**
-   * Load a program (DESIGN.md §3 "Run"): copy it into RAM, reset the registers and PSW
-   * and the devices (as `RESET`), PC = start, SP = origin. RAM, the world and time persist.
+   * Load a program (DESIGN.md §3 "Run"): point the EMT vector at the BIOS, copy the
+   * program into RAM (it may replace the vector), reset the registers and PSW and the
+   * devices (as `RESET`), PC = start, SP = origin. RAM, the world and time persist.
    * Returns an error message, or null.
    */
   load(asm: Pick<AssembleResult, 'origin' | 'bytes' | 'start'> & { symbols?: ReadonlyMap<string, number> },
@@ -109,6 +113,9 @@ export class Robot {
     if (asm.origin + asm.bytes.length > MEMORY.RAM_END) return 'program does not fit in RAM (000000–137777)';
     const m = this.machine;
     if (opts.clearRam) m.ram.fill(0);
+    // EMT vector: new PC = the BIOS entry, new PSW = 0.
+    const e = biosEntry();
+    m.ram.set([e & 0xff, e >> 8, 0, 0], VEC.EMT);
     m.ram.set(asm.bytes, asm.origin);
     m.cpu.reset();
     m.reset();

@@ -9,9 +9,9 @@ import { EditorState } from '@codemirror/state';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { octal } from '../blue11';
 import { blue11Asm, blue11Highlight } from '../blue11/codemirror';
-import { ENERGY_MAX } from '../core';
+import { BIOS_SOURCE, ENERGY_MAX } from '../core';
 import { CanvasRenderer, type Renderer } from '../render';
-import { TEST_MAP, TEST_PROGRAM } from './samples';
+import { BIOS_PROGRAM, TEST_MAP, TEST_PROGRAM } from './samples';
 import { Session, type StepResult } from './session';
 
 const HEADINGS = ['N', 'E', 'S', 'W'];
@@ -43,7 +43,7 @@ export function startPage(): void {
   const editor = new EditorView({
     parent: $('editor'),
     state: EditorState.create({
-      doc: TEST_PROGRAM,
+      doc: BIOS_PROGRAM,
       extensions: [
         lineNumbers(), history(),
         keymap.of([{ key: 'Mod-Enter', run: () => { run(); return true; } }, ...defaultKeymap, ...historyKeymap]),
@@ -179,6 +179,19 @@ export function startPage(): void {
     show();
   });
   window.addEventListener('resize', show);
+
+  const examples: Record<string, string> = { bios: BIOS_PROGRAM, raw: TEST_PROGRAM };
+  const example = $<HTMLSelectElement>('example');
+  example.addEventListener('change', () => {
+    const text = examples[example.value];
+    example.value = '';
+    if (text) editor.dispatch({ changes: { from: 0, to: editor.state.doc.length, insert: text } });
+  });
+
+  const dialog = $<HTMLDialogElement>('bios');
+  $<HTMLPreElement>('bios-source').textContent = BIOS_SOURCE;
+  $('show-bios').addEventListener('click', () => dialog.showModal());
+  $('close-bios').addEventListener('click', () => dialog.close());
 
   showStatus('Press Run (Ctrl+Enter) to drive the robot to the exit.');
   show();

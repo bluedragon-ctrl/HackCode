@@ -2,7 +2,7 @@
 import { describe, expect, it } from 'vitest';
 import { MAP_SIZE } from '../../src/core';
 import { Session } from '../../src/ui/session';
-import { TEST_MAP, TEST_PROGRAM } from '../../src/ui/samples';
+import { BIOS_PROGRAM, TEST_MAP, TEST_PROGRAM } from '../../src/ui/samples';
 
 describe('session', () => {
   it('the test map is the standard size', () => {
@@ -18,6 +18,12 @@ describe('session', () => {
     expect(s.world.atExit).toBe(true);
     expect(s.over).toBe(true);
     expect(s.canContinue(TEST_PROGRAM)).toBe(false);
+  });
+
+  it('the BIOS sample reaches the exit with MOV and EMT', () => {
+    const s = new Session(TEST_MAP);
+    expect(s.load(BIOS_PROGRAM)).toEqual([]);
+    expect(s.run(10_000).stop).toBe('won');
   });
 
   it('reports assembler errors and loads nothing', () => {

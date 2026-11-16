@@ -3,7 +3,7 @@
  * Step / Step tick commands (DESIGN.md §3 "Edit and continue"). No DOM, so it is tested.
  */
 
-import { assemble, type AsmError, type TrapInfo } from '../blue11';
+import { assemble, type AsmError, type AssembleResult, type TrapInfo } from '../blue11';
 import { parseMap, SYMBOLS, type MapOptions, type TickReason, type World } from '../core';
 
 /** Why the last command stopped. 'tick': it ran its ticks (or step) and can go on. */
@@ -22,16 +22,36 @@ export class Session {
   private loaded: string | null = null;
   /** Why the last command stopped, or null before any. */
   last: Stop | null = null;
+  /** The assembly last loaded (for the source line of an address), or null. */
+  program: AssembleResult | null = null;
+  /** Addresses to stop at, before their instruction runs (Run, Continue, Step tick). */
+  breakpoints: ReadonlySet<number> = new Set();
+  /** Instructions executed at each word address since the last load (the heat map). */
+  readonly heat = new Uint32Array(0x8000);
 
   constructor(readonly map: string, private readonly mapOptions: MapOptions = {}) {
-    this.world = parseMap(map, mapOptions);
+    this.world = this.newWorld();
   }
 
   /** A fresh world from the map; nothing loaded. */
   reset(): void {
-    this.world = parseMap(this.map, this.mapOptions);
+    this.world = this.newWorld();
     this.loaded = null;
+    this.program = null;
     this.last = null;
+  }
+
+  private newWorld(): World {
+    const w = parseMap(this.map, this.mapOptions);
+    w.robot.cpu.onInstruction = (pc) => { this.heat[pc >> 1]++; };
+    return w;
+  }
+
+  /** The address of the first instruction on source `line`, or null if it has none. */
+  addressOfLine(line: number): number | null {
+    if (!this.program) return null;
+    for (const [addr, l] of this.program.lineAt) if (l === line) return addr;
+    return null;
   }
 
   /**
@@ -44,7 +64,9 @@ export class Session {
     const err = this.world.robot.load(asm);
     if (err) return [{ line: 0, column: 0, message: err }];
     this.loaded = source;
+    this.program = asm;
     this.last = null;
+    this.heat.fill(0);
     return [];
   }
 
@@ -60,13 +82,17 @@ export class Session {
     return this.loaded === source && !this.over && this.last !== 'double-fault';
   }
 
-  /** Up to `maxTicks` ticks; stops at the first stop that is not 'tick', or at the exit. */
-  run(maxTicks: number): StepResult {
+  /**
+   * Up to `maxTicks` ticks; stops at the first stop that is not 'tick', or at the exit.
+   * `resume`: a breakpoint at the current PC is passed, as Continue and Step tick do. A batch
+   * that carries on a run (the next animation frame) leaves it false, so it still stops there.
+   */
+  run(maxTicks: number, resume = false): StepResult {
     this.unhalt();
     let cycles = 0, instructions = 0;
     let res: StepResult = { stop: 'tick', cycles, instructions };
     for (let i = 0; i < maxTicks; i++) {
-      const r = this.world.runTick();
+      const r = this.world.runTick(this.breakpoints, resume && i === 0);
       cycles += r.cycles;
       instructions += r.instructions;
       res = { stop: this.world.atExit ? 'won' : r.reason, cycles, instructions, trap: r.trap };
@@ -84,7 +110,7 @@ export class Session {
 
   /** The rest of the current tick. */
   stepTick(): StepResult {
-    return this.run(1);
+    return this.run(1, true);
   }
 
   /** Continuing after HALT goes on with the next instruction, as on the console. */

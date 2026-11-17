@@ -396,8 +396,32 @@ there.
 
 ## 8. Expedition (mode 2)
 
-Seeded procedural generation (BSP rooms + corridors), reachability check to the exit,
-difficulty rising with depth. Scoring *later* (ticks, energy, coins).
+Seeded procedural generation (`src/core/dungeon.ts`). `generateLevel(seed, depth)` gives a
+text map (§2 format), so a level can be printed and is built with `parseMap`; the same
+(seed, depth) always gives the same level, and the depth is mixed into the seed so each depth
+of one expedition differs. The world's seed (monsters' random numbers) comes from the same mix.
+
+- **Rooms:** BSP on the 15×15 map. A leaf is the area between two wall lines at least 4 apart
+  (so rooms are at least 3 wide inside, 2 in a narrow leaf); the whole map is always split
+  twice, deeper leaves stop at random. Each leaf gets one room; each split joins a random room
+  on each side with an L-shaped corridor, so every floor cell is connected.
+- **Placement:** the robot in a random room facing a random way; the exit on the floor cell
+  farthest from it; chargers inside rooms (never on a corridor) where every floor cell stays
+  connected; coin piles anywhere; monsters at least 6 cells (Manhattan) from the robot.
+- **Difficulty** (`difficulty(depth)`, depth 1 first):
+
+| depth | monsters | kinds | coin piles (largest) | chargers |
+|---|---|---|---|---|
+| 1 | 1 | patrol | 2 (3) | 0 |
+| 2 | 2 | + chaser | 3 (4) | 1 |
+| 3–4 | 3–4 | + sentry | 3–4 (5–6) | 1 |
+| 5+ | depth, at most 6 | all | 2 + depth/2, at most 6 (depth + 2, at most 9) | 2 |
+
+- **Reachability check** (`checkLevel(world)`): from the robot, over cells whose occupant is
+  not solid or is a monster, the one exit and every coin can be reached, and every charger has
+  a reachable cell beside it to dock from. `tests/core/dungeon.test.ts` checks 1000 seeds.
+- *Next:* the expedition mode in the page (level after level), the math chip in the
+  generated maps and EIS unlocked by it. Scoring *later* (ticks, energy, coins).
 
 ## 9. Assembler notes (from `src/blue11/README.md`)
 

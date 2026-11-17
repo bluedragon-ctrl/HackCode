@@ -92,6 +92,9 @@ export class Session {
 
   get isLoaded(): boolean { return this.loaded !== null; }
 
+  /** The source last loaded (the program running), or null. */
+  get loadedSource(): string | null { return this.loaded; }
+
   /** The run is over: the goal reached or missed, or the robot destroyed. */
   get over(): boolean {
     return this.last === 'won' || this.last === 'failed' || this.last === 'destroyed' || this.world.robot.destroyed;

@@ -203,7 +203,7 @@ const r = cpu.run(1000);                           // { reason: 'halt', … }; R
 | `step(): RunResult` | one instruction, or the pending interrupt. A normal step reports reason `'budget'` |
 | `interrupt(vector, level)` | request an interrupt; taken between instructions once `level` > PSW priority (bits 7–5). One-shot: removed when taken; a new request for the same vector replaces the old one |
 | `cancelInterrupt(vector)` | withdraw a pending request |
-| `onTrap: (t: TrapInfo) => 'vector' \| 'stop'` | called before every trap *and interrupt*. `'stop'`: `run` returns reason `'trap'` and the host handles it. A fault leaves the PC at the faulting instruction; `EMT`/`TRAP`/`BPT`/`IOT` leave it after |
+| `onTrap: (t: TrapInfo) => 'vector' \| 'stop'` | called before every trap *and interrupt*. `'stop'`: `run` returns reason `'trap'` and the host handles it. A fault leaves the PC at the faulting instruction; `EMT`/`TRAP`/`BPT`/`IOT` leave it after; an interrupt stays pending (and a `WAIT` waiting), so the next `run` stops on it again unless the host clears it |
 | `onInstruction: (pc, opcode) => void` | every instruction once fetched, before it runs. Not called for a fetch that faults or for interrupts |
 | `onModeChange: (mode, old) => void` | PSW bits 15–14 changed (trap, `RTI`, PSW write) |
 | `stackLimit` | a push through SP below this address traps to 4 before writing (cause `'stack-limit'`); 0 = off |

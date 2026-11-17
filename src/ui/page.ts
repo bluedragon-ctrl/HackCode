@@ -255,18 +255,26 @@ export function startPage(): void {
     if (!e) return false;
     const cleared = e.depth;
     const ticks = session.world.tick;
+    // The program that won goes on, even if the editor was changed during the run.
+    const program = session.loadedSource ?? source();
     e.descend(session.world);
     progress.expedition = e.state;
     progress.reachDepth(e.depth);
     session = e.session();
     showExpedition();
-    if (!loadEditor()) return false;
-    showStatus(`Depth ${octal(cleared, 1)} cleared in ${octal(ticks)} ticks. Down to depth ${octal(e.depth, 1)}…`, 'win');
+    if (!loadSource(program)) return false;
+    const edited = program !== source() ? ' (The editor was changed: your edits run when you press Run.)' : '';
+    showStatus(`Depth ${octal(cleared, 1)} cleared in ${octal(ticks)} ticks. Down to depth ${octal(e.depth, 1)}…${edited}`, 'win');
     return true;
   }
 
   function loadEditor(): boolean {
-    const errs = session.load(source());
+    return loadSource(source());
+  }
+
+  /** Load `text` into the session; errors are shown on the editor's lines. */
+  function loadSource(text: string): boolean {
+    const errs = session.load(text);
     editor.dispatch({ effects: setErrors.of(errs.filter((e) => e.line).map((e) => ({ line: e.line, message: e.message }))) });
     if (errs.length) {
       const n = errs.length;

@@ -5,7 +5,7 @@
  * No DOM, so it is tested.
  */
 
-import { generateLevel, type Level, type World } from '../core';
+import { ENERGY_MAX, generateLevel, type Level, type World } from '../core';
 import { Session } from './session';
 
 /** What the robot brings into a level. */
@@ -24,6 +24,17 @@ export interface ExpeditionState {
   ticks: number;
 }
 
+/**
+ * The least energy the robot enters a level with: a robot that reaches an exit nearly empty
+ * is topped up to this, so a retry of the next level is never hopeless from the start.
+ */
+export const ENERGY_FLOOR = ENERGY_MAX / 4;
+
+/** What the robot brings in, with energy raised to {@link ENERGY_FLOOR}. */
+function floored(c: Carried): Carried {
+  return c.energy !== undefined && c.energy < ENERGY_FLOOR ? { ...c, energy: ENERGY_FLOOR } : { ...c };
+}
+
 /** Seeds the page makes and accepts: six octal digits. */
 export const SEED_MAX = 0o777777;
 
@@ -31,7 +42,7 @@ export class Expedition {
   readonly seed: number;
   /** The level being played, 1 first. */
   depth: number;
-  /** HP, energy (absent: full) and coins at the start of this level. */
+  /** HP, energy (absent: full; at least {@link ENERGY_FLOOR}) and coins at the start of this level. */
   carried: Carried;
   /** Ticks spent on the levels already cleared. */
   ticks: number;
@@ -41,7 +52,7 @@ export class Expedition {
     if (!(Number.isInteger(seed) && seed >= 0 && seed <= SEED_MAX)) throw new Error('expedition: seed out of range');
     this.seed = seed;
     this.depth = state?.depth ?? 1;
-    this.carried = { ...(state?.carried ?? { coins: 0 }) };
+    this.carried = floored(state?.carried ?? { coins: 0 });
     this.ticks = state?.ticks ?? 0;
   }
 
@@ -60,7 +71,7 @@ export class Expedition {
   /** The exit of `world` (the current level) is reached: go one level deeper. */
   descend(world: World): void {
     const r = world.robot;
-    this.carried = { hp: r.hp, energy: r.energy, coins: r.coins };
+    this.carried = floored({ hp: r.hp, energy: r.energy, coins: r.coins });
     this.ticks += world.tick;
     this.depth++;
   }

@@ -31,6 +31,6 @@ Blue-11; contact and laser damage, loot; DESIGN.md §6; seeded behaviour checked
 ## Later
 
 Scoring (ticks, energy, coins), a probe device for hacking monsters, kernel/user modes,
-more monster kinds with other behaviours, better monster pictures (the current ones are
-placeholder shapes), more upgrades, and tuning of timings and costs
+more monster kinds with other behaviours, cyberpunk effects (a glitch burst on damage, a
+reticle when the sentry fires, scanlines over the map), more upgrades, and tuning of timings and costs
 from play.

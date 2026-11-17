@@ -19,7 +19,7 @@ Status: agreed design, v1 scope. Items marked *later* are out of scope for v1.
 src/blue11/   CPU, assembler, disassembler, device bus   (library: imports nothing from the game)
 src/core/     simulation: world, entities, robot devices, ticks, dungeon generator, seeded RNG
               pure TypeScript, deterministic, no DOM — unit-tested
-src/render/   top-down 2D renderer (vector/neon look) behind a small interface: Canvas 2D now, PixiJS later
+src/render/   top-down 2D renderer (vector/neon cyberpunk look: line-art sprites with a colour split) behind a small interface: Canvas 2D now, PixiJS later
 src/ui/       editor (CodeMirror 6), debugger panels, lesson flow
 ```
 

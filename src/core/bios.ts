@@ -4,7 +4,8 @@
  * and its source is shown to the player, so it is written to be read.
  */
 
-import { assemble, type AssembleResult } from '../blue11';
+import type { AssembleResult } from '../blue11';
+import { assembleBuiltIn } from './builtin';
 import { MEMORY } from './constants';
 import { SYMBOLS } from './symbols';
 
@@ -193,11 +194,7 @@ let cached: AssembleResult | null = null;
 
 /** The assembled BIOS (assembled once). */
 export function bios(): AssembleResult {
-  if (!cached) {
-    const a = assemble(BIOS_SOURCE, { symbols: SYMBOLS, origin: MEMORY.ROM_BASE });
-    if (!a.ok) throw new Error(`bios: ${a.errors.map((e) => `${e.line}:${e.column} ${e.message}`).join('; ')}`);
-    cached = a;
-  }
+  cached ??= assembleBuiltIn('bios', BIOS_SOURCE, { symbols: SYMBOLS, origin: MEMORY.ROM_BASE });
   return cached;
 }
 

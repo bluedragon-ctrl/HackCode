@@ -67,6 +67,8 @@ Owner answers to §16 (2026-11-15, second round):
 19. **A standalone simulator page** (`simulator.html`) is built with the library in slice 2:
     editor, registers and flags, memory, console, step / run / breakpoints. It proves the
     library stands alone and lets the owner try the CPU before it is in the game.
+    *HackCode:* the page was not carried over; its example programs are in
+    `src/simulator/examples.ts`, run by the tests.
 
 M14 is frozen where it is: its last item (boot ROM with safe mode) is not built in
 Rover-ASM. It moves into this milestone's ROM (§10).
@@ -914,7 +916,7 @@ Decisions taken while building it:
 2. **CPU, assembler and disassembler** as the standalone library `src/blue11/` (§14), with
    tests (instruction set, flags, modes, cycles, traps, interrupts, listing) and the
    boundary test; **the standalone simulator page** `simulator.html` (decision 19).
-   ✅ built; nothing in the game changes.
+   ✅ built; nothing in the game changes. (The page itself is not in HackCode.)
 3. **Bus and devices** (Rover's side of §14): the I/O page over the existing device
    logic, interrupts, the gate, the `TRAP` system call; names renamed to six characters;
    the engine runs it behind a switch. Determinism and save round-trip tests. ✅ built

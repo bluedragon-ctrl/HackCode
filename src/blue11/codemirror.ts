@@ -4,9 +4,7 @@
  */
 import { HighlightStyle, StreamLanguage, syntaxHighlighting } from '@codemirror/language';
 import { tags as t } from '@lezer/highlight';
-import { BY_NAME } from './isa';
-
-const REGS = new Set(['R0', 'R1', 'R2', 'R3', 'R4', 'R5', 'R6', 'R7', 'SP', 'PC']);
+import { BY_NAME, REGISTERS } from './isa';
 
 /** Tokenizer: labels, mnemonics, directives, registers, numbers (octal / decimal), text. */
 export const blue11Asm = StreamLanguage.define<{ op: boolean; text: boolean }>({
@@ -40,7 +38,7 @@ export const blue11Asm = StreamLanguage.define<{ op: boolean; text: boolean }>({
         }
         if (BY_NAME.has(w)) return 'keyword';
       }
-      if (REGS.has(w)) return 'variableName';
+      if (w in REGISTERS) return 'variableName';
       return 'atom';
     }
     stream.next();

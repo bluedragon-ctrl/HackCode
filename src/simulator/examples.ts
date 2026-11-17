@@ -1,11 +1,14 @@
 /**
- * Example programs for the standalone simulator (simulator.html). Each one is covered by
- * a test: it assembles and prints what `expect` says.
+ * Example programs for a `SimpleMachine` (DL11 console, KW11-L clock). The standalone
+ * simulator page they were written for (docs/BLUE11_CPU.md decision 19) is not part of
+ * HackCode; tests/blue11/examples.test.ts runs each one and checks it prints `expect`.
  */
 
-/** Device register names the simulator predefines (DL11 console, KW11-L clock). */
+import { DEV, PSW_ADDRESS } from '../blue11';
+
+/** Device register names the examples use (DL11 console, KW11-L clock). */
 export const SIM_SYMBOLS: Record<string, number> = {
-  RCSR: 0o177560, RBUF: 0o177562, XCSR: 0o177564, XBUF: 0o177566, LKS: 0o177546, PSW: 0o177776,
+  RCSR: DEV.RCSR, RBUF: DEV.RBUF, XCSR: DEV.XCSR, XBUF: DEV.XBUF, LKS: DEV.LKS, PSW: PSW_ADDRESS,
 };
 
 export interface Example {

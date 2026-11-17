@@ -8,7 +8,7 @@ export * from './constants';
 export * from './objects';
 export { Grid, type Layer } from './grid';
 export { Rng } from './rng';
-export { ActionDevice, beam, CsrDevice, Dock, lineOfSight, Grabber, Inventory, Laser, Scanner, Status, Wheels, scan, type Seen } from './devices';
+export { ActionDevice, ArgDevice, beam, CsrDevice, Dock, drive, lineOfSight, Grabber, Inventory, Laser, Scanner, Status, Wheels, scan, type Seen } from './devices';
 export { CONSOLE_KEEP, Robot, Rom, type LoadOptions, type RobotOptions } from './robot';
 export { World, type Actor, type TickReason, type TickResult, type WorldOptions } from './world';
 export { SYMBOLS } from './symbols';

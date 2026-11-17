@@ -4,7 +4,7 @@
  */
 
 import { assemble, type AsmError, type AssembleResult, type TrapInfo } from '../blue11';
-import { parseMap, SYMBOLS, type MapOptions, type TickReason, type World } from '../core';
+import { parseMap, SYMBOLS, type MapOptions, type TickReason, type TickResult, type World } from '../core';
 import { checkRules, EXIT_GOAL, type Goal, type Rules } from './lessons/model';
 
 /**
@@ -51,8 +51,13 @@ export class Session {
   /** A fresh world from the map; nothing loaded. */
   reset(): void {
     this.world = this.newWorld();
-    this.loaded = null;
-    this.program = null;
+    this.setLoaded(null, null);
+  }
+
+  /** A program is loaded (or none): the run's state starts afresh. */
+  private setLoaded(source: string | null, program: AssembleResult | null): void {
+    this.loaded = source;
+    this.program = program;
     this.last = null;
     this.failure = null;
     this.heat.fill(0);
@@ -83,11 +88,7 @@ export class Session {
     if (broken.length) return broken.map((message) => ({ line: 0, column: 0, message }));
     const err = this.world.robot.load(asm);
     if (err) return [{ line: 0, column: 0, message: err }];
-    this.loaded = source;
-    this.program = asm;
-    this.last = null;
-    this.failure = null;
-    this.heat.fill(0);
+    this.setLoaded(source, asm);
     return [];
   }
 
@@ -113,23 +114,16 @@ export class Session {
    */
   run(maxTicks: number, resume = false): StepResult {
     this.unhalt();
-    let cycles = 0, instructions = 0;
-    let res: StepResult = { stop: 'tick', cycles, instructions };
-    for (let i = 0; i < maxTicks; i++) {
-      const r = this.world.runTick(this.breakpoints, resume && i === 0);
-      cycles += r.cycles;
-      instructions += r.instructions;
-      res = { stop: this.outcome(r.reason), cycles, instructions, trap: r.trap };
-      if (res.stop !== 'tick') break;
-    }
-    this.last = res.stop;
-    return res;
+    let stop: Stop = 'tick';
+    const r = this.world.run(maxTicks, this.breakpoints, resume, (t) => (stop = this.outcome(t.reason)) !== 'tick');
+    return this.finish(stop, r);
   }
 
   /** One instruction (the tick finishes if it reaches its end). */
   stepInstruction(): StepResult {
     this.unhalt();
-    return this.finish(this.world.stepInstruction());
+    const r = this.world.stepInstruction();
+    return this.finish(this.outcome(r.reason), r);
   }
 
   /** The rest of the current tick. */
@@ -154,8 +148,7 @@ export class Session {
     if (this.last === 'halt' && cpu.halted) cpu.halted = false;
   }
 
-  private finish(r: { reason: TickReason; cycles: number; instructions: number; trap?: TrapInfo }): StepResult {
-    const stop = this.outcome(r.reason);
+  private finish(stop: Stop, r: TickResult): StepResult {
     this.last = stop;
     return { stop, cycles: r.cycles, instructions: r.instructions, trap: r.trap };
   }

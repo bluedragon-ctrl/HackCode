@@ -25,18 +25,23 @@ export class Grid {
     return x >= 0 && y >= 0 && x < this.width && y < this.height;
   }
 
+  /** Where a cell's record starts in a layer. */
+  private at(x: number, y: number): number {
+    return (y * this.width + x) * 4;
+  }
+
   /** The record at a cell; outside the grid: nothing. */
   get(layer: Layer, x: number, y: number): ObjectRecord {
     if (!this.inBounds(x, y)) return { ...NOTHING };
     const b = this[layer];
-    const i = (y * this.width + x) * 4;
+    const i = this.at(x, y);
     return { type: b[i], hp: b[i + 1], flags: b[i + 2], loot: b[i + 3] };
   }
 
   set(layer: Layer, x: number, y: number, r: ObjectRecord): void {
     if (!this.inBounds(x, y)) throw new Error(`grid: ${x},${y} is outside`);
     const b = this[layer];
-    const i = (y * this.width + x) * 4;
+    const i = this.at(x, y);
     b[i] = r.type & 0xff;
     b[i + 1] = r.hp & 0xff;
     b[i + 2] = r.flags & 0xff;
@@ -47,8 +52,14 @@ export class Grid {
     this.set(layer, x, y, NOTHING);
   }
 
+  /** Move the record at (x0, y0) to (x1, y1), over whatever is there; (x0, y0) is left empty. */
+  move(layer: Layer, x0: number, y0: number, x1: number, y1: number): void {
+    this.set(layer, x1, y1, this.get(layer, x0, y0));
+    this.clear(layer, x0, y0);
+  }
+
   /** TYPE at a cell (0 = empty or outside). */
   typeAt(layer: Layer, x: number, y: number): number {
-    return this.inBounds(x, y) ? this[layer][(y * this.width + x) * 4] : 0;
+    return this.inBounds(x, y) ? this[layer][this.at(x, y)] : 0;
   }
 }

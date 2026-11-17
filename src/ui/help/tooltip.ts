@@ -6,10 +6,8 @@
 
 import type { Extension } from '@codemirror/state';
 import { hoverTooltip } from '@codemirror/view';
-import { inComment, wordAt, type HelpIndex, type Topic } from './model';
+import { inComment, wordRange, type HelpIndex, type Topic } from './model';
 import { el, renderInline } from './view';
-
-const NAME = /[A-Za-z0-9.$%]/;
 
 export function helpTooltip(index: HelpIndex, open: (t: Topic) => void): Extension {
   return hoverTooltip((view, pos, side) => {
@@ -17,18 +15,16 @@ export function helpTooltip(index: HelpIndex, open: (t: Topic) => void): Extensi
     const col = pos - line.from;
     // at a word's edge, the side tells which character the mouse is over
     const at = side < 0 && col > 0 ? col - 1 : col;
-    if (!NAME.test(line.text[at] ?? '') || inComment(line.text, at)) return null;
-    const word = wordAt(line.text, at);
-    const found = word ? index.entryFor(word) : null;
+    // only on the name itself (not beside it), so the tooltip stays while the mouse is on it
+    const range = wordRange(line.text, at);
+    if (!range || at < range.from || at >= range.to || inComment(line.text, at)) return null;
+    const found = index.entryFor(line.text.slice(range.from, range.to));
     if (!found) return null;
     const { entry, section } = found;
     const topic = { section: section.id, anchor: entry.anchor };
-    // the word's extent, so the tooltip stays while the mouse is on it
-    let from = at;
-    while (from > 0 && NAME.test(line.text[from - 1])) from--;
     return {
-      pos: line.from + from,
-      end: line.from + from + word.length,
+      pos: line.from + range.from,
+      end: line.from + range.to,
       above: true,
       create() {
         const dom = el('div', 'help-tip');

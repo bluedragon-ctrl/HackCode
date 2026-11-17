@@ -8,17 +8,9 @@
  * deterministic (no wall-clock time).
  */
 
-import { CSR, DeviceMachine, DL11, KW11L, type DeviceMachineOptions } from './devices';
+import { CSR, DEV, DeviceMachine, DL11, KW11L, type DeviceMachineOptions } from './devices';
 
-export { CSR };
-
-/** DL11 console and KW11-L clock registers (octal addresses, as on the original machines). */
-export const DEV = {
-  RCSR: 0o177560, RBUF: 0o177562, XCSR: 0o177564, XBUF: 0o177566,
-  LKS: 0o177546,
-  /** Console receiver / transmitter / clock interrupt vectors. */
-  VEC_RX: 0o060, VEC_TX: 0o064, VEC_CLOCK: 0o100,
-} as const;
+export { CSR, DEV };
 
 export interface MachineOptions extends DeviceMachineOptions {
   /** CPU cycles per line-clock tick (default 1000). */

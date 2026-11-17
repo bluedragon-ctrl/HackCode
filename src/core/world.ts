@@ -118,19 +118,22 @@ export class World {
       }
       return { reason: r.reason, cycles, instructions, trap: r.trap };
     }
-    this.finishTick();
-    return { reason: this.robot.destroyed ? 'destroyed' : 'tick', cycles, instructions };
+    return { reason: this.finishTick(), cycles, instructions };
   }
 
-  /** Up to `maxTicks` ticks; stops at the first result that is not 'tick'. */
-  run(maxTicks: number, breakpoints?: ReadonlySet<number>): TickResult {
+  /**
+   * Up to `maxTicks` ticks; stops at the first result that is not 'tick', or, with `stop`,
+   * at the first one it says to stop at. `resume` is the first tick's (see {@link runTick}).
+   */
+  run(maxTicks: number, breakpoints?: ReadonlySet<number>, resume = true,
+    stop?: (r: TickResult) => boolean): TickResult {
     let cycles = 0, instructions = 0;
     let last: TickResult = { reason: 'tick', cycles, instructions };
     for (let i = 0; i < maxTicks; i++) {
-      last = this.runTick(breakpoints, i === 0);
+      last = this.runTick(breakpoints, resume && i === 0);
       cycles += last.cycles;
       instructions += last.instructions;
-      if (last.reason !== 'tick') break;
+      if (stop ? stop(last) : last.reason !== 'tick') break;
     }
     return { ...last, cycles, instructions };
   }
@@ -149,11 +152,11 @@ export class World {
     const base = { cycles: r.cycles, instructions: r.instructions, trap: r.trap };
     if (r.reason !== 'budget' && r.reason !== 'wait') return { reason: r.reason, ...base };
     if (this.phase < TICK_CYCLES) return { reason: 'tick', ...base };
-    this.finishTick();
-    return { reason: this.robot.destroyed ? 'destroyed' : 'tick', ...base };
+    return { reason: this.finishTick(), ...base };
   }
 
-  private finishTick(): void {
+  /** End the tick (drain, devices, monsters); 'destroyed' if the robot did not survive it. */
+  private finishTick(): 'tick' | 'destroyed' {
     const robot = this.robot;
     // CPU drain
     this.drain += this.tickInstructions * DRAIN.PER_INSTRUCTION + DRAIN.PER_TICK;
@@ -169,6 +172,7 @@ export class World {
     if (robot.hp === 0) robot.destroyed = true;
     this.tick++;
     this.phase -= TICK_CYCLES;
+    return robot.destroyed ? 'destroyed' : 'tick';
   }
 
   // ---------------------------------------------------------------- world rules
@@ -182,8 +186,7 @@ export class World {
   moveRobot(x: number, y: number): boolean {
     const r = this.robot;
     if (!this.grid.inBounds(x, y) || this.grid.typeAt('occupant', x, y)) return false;
-    this.grid.set('occupant', x, y, this.grid.get('occupant', r.x, r.y));
-    this.grid.clear('occupant', r.x, r.y);
+    this.grid.move('occupant', r.x, r.y, x, y);
     r.x = x;
     r.y = y;
     return true;

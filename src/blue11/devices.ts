@@ -11,7 +11,7 @@
  */
 
 import { BUS_ERROR, Cpu, PSW_ADDRESS, type Bus, type CpuOptions, type RunResult } from './cpu';
-import type { AssembleResult } from './assembler';
+import type { Program } from './assembler';
 
 export interface Device {
   /** First bus address (even). */
@@ -122,15 +122,23 @@ export class DeviceMachine implements Bus {
 
   // ---------------------------------------------------------------- host side
 
-  /** Clear memory, power the devices up, load an assembled program, PC = its start, SP below it. */
-  boot(asm: Pick<AssembleResult, 'origin' | 'bytes' | 'start'>): void {
+  /** Clear memory, power the devices up, load an assembled program, then {@link start} it. */
+  boot(asm: Program): void {
     this.ram.fill(0);
     this.cpu.reset();
     for (const d of this.devices) d.reset?.(true);
     this.cycles = 0;
     this.instructions = 0;
     this.ram.set(asm.bytes.subarray(0, Math.max(0, this.ram.length - asm.origin)), asm.origin);
-    this.cpu.r[7] = asm.start;
+    this.start(asm);
+  }
+
+  /**
+   * Point the CPU at a program already in memory: PC = its start, SP just below its origin
+   * (the stack grows down from there), or 001000 if it begins in the vectors (below 400).
+   */
+  start(asm: Pick<Program, 'origin' | 'start'>): void {
+    this.cpu.r[7] = asm.start & 0xffff;
     this.cpu.r[6] = asm.origin >= 0o400 ? asm.origin & 0xfffe : 0o1000;
   }
 
@@ -193,6 +201,14 @@ export class DeviceMachine implements Bus {
 /** CSR bits shared by DEC devices. */
 export const CSR = { DONE: 0o200, IE: 0o100 } as const;
 
+/** DL11 console and KW11-L clock registers (octal addresses, as on the original machines). */
+export const DEV = {
+  RCSR: 0o177560, RBUF: 0o177562, XCSR: 0o177564, XBUF: 0o177566,
+  LKS: 0o177546,
+  /** Console receiver / transmitter / clock interrupt vectors. */
+  VEC_RX: 0o060, VEC_TX: 0o064, VEC_CLOCK: 0o100,
+} as const;
+
 export interface DL11Options {
   /** Default 177560 (the console). */
   base?: number;
@@ -228,8 +244,8 @@ export class DL11 implements Device {
   private xcsr: number = CSR.DONE;
 
   constructor(opts: DL11Options = {}) {
-    this.base = opts.base ?? 0o177560;
-    this.vector = opts.vector ?? 0o060;
+    this.base = opts.base ?? DEV.RCSR;
+    this.vector = opts.vector ?? DEV.VEC_RX;
     this.level = opts.level ?? 4;
     this.maxOutput = opts.maxOutput ?? Infinity;
     if (!(this.maxOutput >= 1)) throw new Error('DL11: maxOutput must be at least 1');
@@ -263,14 +279,12 @@ export class DL11 implements Device {
     switch (offset) {
       case 0:
         this.rcsr = (this.rcsr & ~CSR.IE) | (value & CSR.IE);
-        if ((this.rcsr & CSR.IE) && (this.rcsr & CSR.DONE)) this.cpu.interrupt(this.vector, this.level);
-        else this.cpu.cancelInterrupt(this.vector);
+        this.request(this.vector, (this.rcsr & CSR.IE) !== 0 && (this.rcsr & CSR.DONE) !== 0);
         return true;
       case 2: return true;
       case 4:
         this.xcsr = (this.xcsr & ~CSR.IE) | (value & CSR.IE);
-        if (this.xcsr & CSR.IE) this.cpu.interrupt(this.vector + 4, this.level);
-        else this.cpu.cancelInterrupt(this.vector + 4);
+        this.request(this.vector + 4, (this.xcsr & CSR.IE) !== 0);
         return true;
       default: {
         const ch = String.fromCharCode(value & 0x7f);
@@ -294,6 +308,12 @@ export class DL11 implements Device {
 
   canWake(): boolean { return (this.rcsr & CSR.IE) !== 0; }
 
+  /** Request the interrupt at `vector`, or withdraw it. */
+  private request(vector: number, on: boolean): void {
+    if (on) this.cpu.interrupt(vector, this.level);
+    else this.cpu.cancelInterrupt(vector);
+  }
+
   private feed(): void {
     if (this.rcsr & CSR.DONE || this.input.length === 0) return;
     this.rbuf = this.input.shift()!;
@@ -304,9 +324,9 @@ export class DL11 implements Device {
 
 /** KW11-L line clock at 177546, vector 100, level 6: ticks every `cycles` CPU cycles. */
 export class KW11L implements Device {
-  readonly base = 0o177546;
+  readonly base = DEV.LKS;
   readonly size = 2;
-  static readonly VECTOR = 0o100;
+  static readonly VECTOR = DEV.VEC_CLOCK;
 
   private cpu!: Cpu;
   private lks: number = CSR.DONE;

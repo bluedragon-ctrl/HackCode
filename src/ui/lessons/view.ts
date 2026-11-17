@@ -19,6 +19,13 @@ export interface LessonActions {
 
 const $ = <T extends HTMLElement>(root: ParentNode, sel: string) => root.querySelector(sel) as T;
 
+/** Ask before the editor's program is replaced by `what` ("the starter program"). */
+export function confirmReplace(what: string): boolean {
+  return confirm(`Replace your program with ${what}? Your program is not kept.`);
+}
+
+const heading = (l: Lesson): string => `Lesson ${l.number} · ${l.title}`;
+
 export class LessonView {
   private lesson: Lesson | null = null;
   /** Hints shown so far. */
@@ -44,10 +51,10 @@ export class LessonView {
     $(bar, '.lesson-brief').addEventListener('click', () => this.brief());
     this.hintButton.addEventListener('click', () => this.nextHint());
     $(bar, '.lesson-solution').addEventListener('click', () => {
-      if (confirm('Replace your program with the reference solution? Your program is not kept.')) actions.solution();
+      if (confirmReplace('the reference solution')) actions.solution();
     });
     $(bar, '.lesson-starter').addEventListener('click', () => {
-      if (confirm('Replace your program with the starter program? Your program is not kept.')) actions.starter();
+      if (confirmReplace('the starter program')) actions.starter();
     });
     this.nextButton.addEventListener('click', () => actions.next());
     $(dialog, '.brief-close').addEventListener('click', () => dialog.close());
@@ -59,7 +66,7 @@ export class LessonView {
     this.hints = 0;
     this.bar.hidden = !lesson;
     if (!lesson) return;
-    this.title.textContent = `Lesson ${lesson.number} · ${lesson.title}`;
+    this.title.textContent = heading(lesson);
     this.inline(this.goal, `**Goal:** ${lesson.goal.text}`);
     const rules = rulesText(lesson.rules);
     this.rules.hidden = !rules;
@@ -79,7 +86,7 @@ export class LessonView {
   brief(): void {
     const l = this.lesson;
     if (!l) return;
-    this.briefTitle.textContent = `Lesson ${l.number} · ${l.title}`;
+    this.briefTitle.textContent = heading(l);
     const goal = renderInline(el('p', 'brief-goal'), `**Goal:** ${l.goal.text}`, (t) => this.help(t));
     this.briefContent.replaceChildren(...l.briefing.map((b) => renderBlock(b, (t) => this.help(t))), goal);
     if (!this.dialog.open) this.dialog.showModal();

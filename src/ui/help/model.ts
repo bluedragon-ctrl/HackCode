@@ -6,6 +6,8 @@
  * [label](section#anchor).
  */
 
+import { commentStart } from '../../blue11';
+
 /** One described thing that F1 and search can find: an instruction, a symbol, a directive. */
 export interface Entry {
   /** Unique across the help; the DOM id is `help-<anchor>`. */
@@ -108,23 +110,26 @@ export interface Topic {
  * case, or '' if there is none. `#WHLCSR` gives `WHLCSR`; `CS.GO!CS.IE` gives either name.
  */
 export function wordAt(line: string, col: number): string {
+  const r = wordRange(line, col);
+  return r ? line.slice(r.from, r.to).toUpperCase() : '';
+}
+
+/** Where the name of {@link wordAt} is in the line (`to` exclusive), or null. */
+export function wordRange(line: string, col: number): { from: number; to: number } | null {
   const ch = (i: number) => /[A-Za-z0-9.$%]/.test(line[i] ?? '');
   let from = Math.min(col, line.length);
   if (!ch(from) && ch(from - 1)) from--;
-  if (!ch(from)) return '';
+  if (!ch(from)) return null;
   let to = from;
   while (ch(from - 1)) from--;
   while (ch(to)) to++;
-  return line.slice(from, to).toUpperCase();
+  return { from, to };
 }
 
-/** Whether `col` is in the line's comment (after a `;` that is not a character constant `';`). */
+/** Whether `col` is in the line's comment, by the assembler's rules (`';` or `.ASCII /;/` is not one). */
 export function inComment(line: string, col: number): boolean {
-  for (let i = 0; i < Math.min(col, line.length); i++) {
-    if (line[i] === "'") i++;
-    else if (line[i] === ';') return true;
-  }
-  return false;
+  const at = commentStart(line);
+  return at >= 0 && at < col;
 }
 
 export interface SearchHit extends Topic {

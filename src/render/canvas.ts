@@ -84,22 +84,25 @@ export class CanvasRenderer implements Renderer {
     this.ctx.shadowBlur = blur;
   }
 
+  /** Stroke in `color`, `width` wide, glowing `blur` around it. */
+  private pen(color: string, blur: number, width = 2): void {
+    this.glow(color, blur);
+    this.ctx.strokeStyle = color;
+    this.ctx.lineWidth = width;
+  }
+
   private floorItem(o: ObjectRecord, px: number, py: number, s: number): void {
     const ctx = this.ctx;
     const cx = px + s / 2, cy = py + s / 2;
     ctx.save();
     switch (o.type) {
       case TYPE.EXIT:
-        this.glow(COLOR.exit, 10);
-        ctx.strokeStyle = COLOR.exit;
-        ctx.lineWidth = 2;
+        this.pen(COLOR.exit, 10);
         ctx.strokeRect(px + s * 0.15, py + s * 0.15, s * 0.7, s * 0.7);
         ctx.strokeRect(px + s * 0.32, py + s * 0.32, s * 0.36, s * 0.36);
         break;
       case TYPE.COIN: {
-        this.glow(COLOR.coin, 8);
-        ctx.strokeStyle = COLOR.coin;
-        ctx.lineWidth = 2;
+        this.pen(COLOR.coin, 8);
         ctx.beginPath();
         ctx.arc(cx, cy, s * 0.22, 0, 2 * Math.PI);
         ctx.stroke();
@@ -115,9 +118,7 @@ export class CanvasRenderer implements Renderer {
         break;
       }
       case TYPE.CHIP:
-        this.glow(COLOR.chip, 8);
-        ctx.strokeStyle = COLOR.chip;
-        ctx.lineWidth = 2;
+        this.pen(COLOR.chip, 8);
         ctx.strokeRect(px + s * 0.3, py + s * 0.3, s * 0.4, s * 0.4);
         break;
       default:
@@ -132,11 +133,9 @@ export class CanvasRenderer implements Renderer {
     if (o.type === TYPE.WALL) {
       ctx.fillStyle = COLOR.wallFill;
       ctx.fillRect(px + 1, py + 1, s - 2, s - 2);
-      this.glow(COLOR.wall, 6);
-      ctx.strokeStyle = COLOR.wall;
+      this.pen(COLOR.wall, 6, 1.5);
       // Damaged walls dim with their HP.
       ctx.globalAlpha = 0.35 + 0.65 * (o.hp / 255);
-      ctx.lineWidth = 1.5;
       ctx.strokeRect(px + 3, py + 3, s - 6, s - 6);
     } else {
       this.unknown(px, py, s);
@@ -156,11 +155,8 @@ export class CanvasRenderer implements Renderer {
     ctx.save();
     ctx.fillStyle = COLOR.chargerFill;
     ctx.fillRect(px + s * 0.12, py + s * 0.12, s * 0.76, s * 0.76);
-    const alpha = 0.4 + 0.6 * (o.hp / 255);
-    ctx.globalAlpha = alpha;
-    this.glow(COLOR.charger, feeding ? 18 : 6);
-    ctx.strokeStyle = COLOR.charger;
-    ctx.lineWidth = 1.5;
+    ctx.globalAlpha = 0.4 + 0.6 * (o.hp / 255);
+    this.pen(COLOR.charger, feeding ? 18 : 6, 1.5);
     ctx.strokeRect(px + s * 0.12, py + s * 0.12, s * 0.76, s * 0.76);
     ctx.fillStyle = COLOR.charger;
     ctx.beginPath();
@@ -188,8 +184,8 @@ export class CanvasRenderer implements Renderer {
   }
 
   /**
-   * Draws a sprite (authored facing east in a 40Ă—40 box) rotated to the heading, with a
-   * faint offset copy in the ghost color behind it â€” the colour-split look. `glitchy`
+   * Draws a sprite (authored facing east in a 40×40 box) rotated to the heading, with a
+   * faint offset copy in the ghost color behind it — the colour-split look. `glitchy`
    * widens the split for a tick.
    */
   private sprite(sprite: Sprite, color: string, ghost: string | null, heading: number,
@@ -231,9 +227,7 @@ export class CanvasRenderer implements Renderer {
   private unknown(px: number, py: number, s: number): void {
     const ctx = this.ctx;
     const cx = px + s / 2, cy = py + s / 2, r = s * 0.3;
-    this.glow(COLOR.unknown, 8);
-    ctx.strokeStyle = COLOR.unknown;
-    ctx.lineWidth = 2;
+    this.pen(COLOR.unknown, 8);
     ctx.beginPath();
     ctx.moveTo(cx, cy - r); ctx.lineTo(cx + r, cy); ctx.lineTo(cx, cy + r); ctx.lineTo(cx - r, cy);
     ctx.closePath();
@@ -256,7 +250,7 @@ export class CanvasRenderer implements Renderer {
 interface SpritePart { path: Path2D; fill?: boolean; dash?: boolean; detail?: boolean }
 type Sprite = SpritePart[];
 
-/** Sprites are authored in a 40Ă—40 box facing east (+x). */
+/** Sprites are authored in a 40×40 box facing east (+x). */
 const SPRITE_BOX = 40;
 /** Cells smaller than this (in CSS px) get the simplified sprites. */
 const DETAIL_CELL = 24;

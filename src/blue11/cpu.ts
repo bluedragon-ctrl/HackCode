@@ -6,6 +6,8 @@
  * of the public methods. Time is counted in cycles; the host chooses the cycle model.
  */
 
+import { branchOffset } from './isa';
+
 /** What a bus returns for an address with nothing there (or a write it refuses). */
 export const BUS_ERROR = -1;
 
@@ -206,7 +208,7 @@ export class Cpu {
    * CPU priority (PSW bits 7–5); a pending request for the same vector is replaced.
    */
   interrupt(vector: number, level: number): void {
-    this.pending = this.pending.filter((p) => p.vector !== vector);
+    this.cancelInterrupt(vector);
     this.pending.push({ vector, level });
   }
 
@@ -248,24 +250,27 @@ export class Cpu {
 
   // ---------------------------------------------------------------- bus access
 
+  /** A fault through vector 4 at the current instruction. */
+  private busFault(cause: 'odd-address' | 'bus-error' | 'stack-limit', addr: number): Abort {
+    return new Abort({ vector: VEC.BUS_ERROR, cause, pc: this.ipc, detail: addr });
+  }
+
   private read(addr: number, byte: boolean): number {
     addr &= 0xffff;
-    if (!byte && (addr & 1)) throw new Abort({ vector: VEC.BUS_ERROR, cause: 'odd-address', pc: this.ipc, detail: addr });
+    if (!byte && (addr & 1)) throw this.busFault('odd-address', addr);
     if (this.cycleModel === 'per-bus-access') this.cyc++;
     if ((addr & 0xfffe) === PSW_ADDRESS) return byte ? (addr & 1 ? this.psw >> 8 : this.psw & 0xff) : this.psw;
     const v = this.bus.read(addr, byte);
-    if (v < 0) throw new Abort({ vector: VEC.BUS_ERROR, cause: 'bus-error', pc: this.ipc, detail: addr });
+    if (v < 0) throw this.busFault('bus-error', addr);
     return v;
   }
 
   private write(addr: number, value: number, byte: boolean): void {
     addr &= 0xffff;
-    if (!byte && (addr & 1)) throw new Abort({ vector: VEC.BUS_ERROR, cause: 'odd-address', pc: this.ipc, detail: addr });
+    if (!byte && (addr & 1)) throw this.busFault('odd-address', addr);
     if (this.cycleModel === 'per-bus-access') this.cyc++;
     if ((addr & 0xfffe) === PSW_ADDRESS) {
-      if (this.protectModes && this.mode !== 0) {
-        throw new Abort({ vector: VEC.BUS_ERROR, cause: 'bus-error', pc: this.ipc, detail: addr });
-      }
+      if (this.protectModes && this.mode !== 0) throw this.busFault('bus-error', addr);
       let w: number;
       if (!byte) w = value & 0xffff;
       else if (addr & 1) w = ((value & 0xff) << 8) | (this.psw & 0xff);
@@ -274,9 +279,7 @@ export class Cpu {
       this.setPsw((w & ~PSW.T) | (this.psw & PSW.T));
       return;
     }
-    if (!this.bus.write(addr, byte ? value & 0xff : value & 0xffff, byte)) {
-      throw new Abort({ vector: VEC.BUS_ERROR, cause: 'bus-error', pc: this.ipc, detail: addr });
-    }
+    if (!this.bus.write(addr, byte ? value & 0xff : value & 0xffff, byte)) throw this.busFault('bus-error', addr);
   }
 
   private fetch(): number {
@@ -287,9 +290,7 @@ export class Cpu {
 
   private push(v: number): void {
     const sp = (this.r[SP] - 2) & 0xffff;
-    if (this.stackLimit && sp < this.stackLimit) {
-      throw new Abort({ vector: VEC.BUS_ERROR, cause: 'stack-limit', pc: this.ipc, detail: sp });
-    }
+    if (this.stackLimit && sp < this.stackLimit) throw this.busFault('stack-limit', sp);
     this.r[SP] = sp;
     this.write(sp, v, false);
   }
@@ -327,9 +328,7 @@ export class Cpu {
         return this.read(a, false);
       case 4:
         a = (this.r[reg] - step) & 0xffff;
-        if (reg === SP && this.stackLimit && a < this.stackLimit) {
-          throw new Abort({ vector: VEC.BUS_ERROR, cause: 'stack-limit', pc: this.ipc, detail: a });
-        }
+        if (reg === SP && this.stackLimit && a < this.stackLimit) throw this.busFault('stack-limit', a);
         this.r[reg] = a;
         return a;
       case 5:
@@ -377,6 +376,12 @@ export class Cpu {
   /** Take a trap: push PSW and PC, load the vector. Throws a double fault on failure. */
   private enter(t: TrapInfo): 'vector' | 'stop' {
     if (this.onTrap && this.onTrap(t) === 'stop') return 'stop';
+    this.vector(t);
+    return 'vector';
+  }
+
+  /** Take a trap the host was already asked about. Throws a double fault on failure. */
+  private vector(t: TrapInfo): void {
     const oldPsw = this.psw;
     const oldPc = this.r[PC];
     try {
@@ -391,7 +396,6 @@ export class Cpu {
       if (e instanceof Abort) throw new DoubleFault(t);
       throw e;
     }
-    return 'vector';
   }
 
   private takeInterrupt(): { cycles: number; stop?: TrapInfo; fault?: TrapInfo } {
@@ -414,15 +418,11 @@ export class Cpu {
     this.pending = this.pending.filter((q) => q !== p);
     this.waiting = false;
     this.cyc = 0;
-    const saved = this.onTrap;
-    this.onTrap = null; // already asked
     try {
-      this.enter(t);
+      this.vector(t);
     } catch (e) {
       if (e instanceof DoubleFault) { this.halted = true; return { cycles: this.cyc, fault: e.trap }; }
       throw e;
-    } finally {
-      this.onTrap = saved;
     }
     return { cycles: this.cycleModel === 'flat' ? 1 : this.cyc };
   }
@@ -458,9 +458,7 @@ export class Cpu {
           if (faulting) this.r[PC] = this.ipc;
           return { cycles: this.cost(extra), reason: 'trap', trap };
         }
-        const saved = this.onTrap;
-        this.onTrap = null;
-        try { this.enter(trap); } finally { this.onTrap = saved; }
+        this.vector(trap);
       } else if (traceAfter && !reason) {
         const t: TrapInfo = { vector: VEC.BPT, cause: 'trace', pc: this.ipc };
         if (this.enter(t) === 'stop') return { cycles: this.cost(extra), reason: 'trap', trap: t };
@@ -556,91 +554,38 @@ export class Cpu {
     const mask = byte ? 0xff : 0xffff;
     const code = (w >> 6) & 0o77;
     const loc = this.ea(w & 0o77, byte);
-    const c = this.c ? 1 : 0;
-    let d: number;
-    let r: number;
-    switch (code) {
-      case 0o50: // CLR
-        this.flags(false, true, false, false);
-        this.st(loc, 0, byte);
-        return;
-      case 0o51: // COM
-        r = ~this.ld(loc, byte) & mask;
-        this.nz(r, msb, false, true);
-        this.st(loc, r, byte);
-        return;
-      case 0o52: // INC
-        d = this.ld(loc, byte);
-        r = (d + 1) & mask;
-        this.nz(r, msb, d === msb - 1, this.c);
-        this.st(loc, r, byte);
-        return;
-      case 0o53: // DEC
-        d = this.ld(loc, byte);
-        r = (d - 1) & mask;
-        this.nz(r, msb, d === msb, this.c);
-        this.st(loc, r, byte);
-        return;
-      case 0o54: // NEG
-        d = this.ld(loc, byte);
-        r = -d & mask;
-        this.nz(r, msb, r === msb, r !== 0);
-        this.st(loc, r, byte);
-        return;
-      case 0o55: // ADC
-        d = this.ld(loc, byte);
-        r = (d + c) & mask;
-        this.nz(r, msb, d === msb - 1 && c === 1, d === mask && c === 1);
-        this.st(loc, r, byte);
-        return;
-      case 0o56: // SBC
-        d = this.ld(loc, byte);
-        r = (d - c) & mask;
-        this.nz(r, msb, d === msb && c === 1, d === 0 && c === 1);
-        this.st(loc, r, byte);
-        return;
-      case 0o57: // TST
-        this.nz(this.ld(loc, byte), msb, false, false);
-        return;
-      case 0o60: { // ROR
-        d = this.ld(loc, byte);
-        r = (d >> 1) | (c ? msb : 0);
-        const cOut = (d & 1) !== 0;
-        const n = (r & msb) !== 0;
-        this.flags(n, r === 0, n !== cOut, cOut);
-        this.st(loc, r, byte);
-        return;
-      }
-      case 0o61: { // ROL
-        d = this.ld(loc, byte);
-        r = ((d << 1) | c) & mask;
-        const cOut = (d & msb) !== 0;
-        const n = (r & msb) !== 0;
-        this.flags(n, r === 0, n !== cOut, cOut);
-        this.st(loc, r, byte);
-        return;
-      }
-      case 0o62: { // ASR
-        d = this.ld(loc, byte);
-        r = (d >> 1) | (d & msb);
-        const cOut = (d & 1) !== 0;
-        const n = (r & msb) !== 0;
-        this.flags(n, r === 0, n !== cOut, cOut);
-        this.st(loc, r, byte);
-        return;
-      }
-      case 0o63: { // ASL
-        d = this.ld(loc, byte);
-        r = (d << 1) & mask;
-        const cOut = (d & msb) !== 0;
-        const n = (r & msb) !== 0;
-        this.flags(n, r === 0, n !== cOut, cOut);
-        this.st(loc, r, byte);
-        return;
-      }
-      default:
-        return this.illegal();
+    if (code === 0o50) { // CLR
+      this.flags(false, true, false, false);
+      this.st(loc, 0, byte);
+      return;
     }
+    if (code > 0o63) return this.illegal();
+    const c = this.c ? 1 : 0;
+    const d = this.ld(loc, byte);
+    let r: number;
+    if (code >= 0o60) {
+      // Shifts and rotates: C is the bit shifted out, V = N xor C.
+      let cOut: boolean;
+      switch (code) {
+        case 0o60: r = (d >> 1) | (c ? msb : 0); cOut = (d & 1) !== 0; break; // ROR
+        case 0o61: r = ((d << 1) | c) & mask; cOut = (d & msb) !== 0; break; // ROL
+        case 0o62: r = (d >> 1) | (d & msb); cOut = (d & 1) !== 0; break; // ASR
+        default: r = (d << 1) & mask; cOut = (d & msb) !== 0; break; // ASL
+      }
+      const n = (r & msb) !== 0;
+      this.flags(n, r === 0, n !== cOut, cOut);
+    } else {
+      switch (code) {
+        case 0o51: r = ~d & mask; this.nz(r, msb, false, true); break; // COM
+        case 0o52: r = (d + 1) & mask; this.nz(r, msb, d === msb - 1, this.c); break; // INC
+        case 0o53: r = (d - 1) & mask; this.nz(r, msb, d === msb, this.c); break; // DEC
+        case 0o54: r = -d & mask; this.nz(r, msb, r === msb, r !== 0); break; // NEG
+        case 0o55: r = (d + c) & mask; this.nz(r, msb, d === msb - 1 && c === 1, d === mask && c === 1); break; // ADC
+        case 0o56: r = (d - c) & mask; this.nz(r, msb, d === msb && c === 1, d === 0 && c === 1); break; // SBC
+        default: this.nz(d, msb, false, false); return; // TST
+      }
+    }
+    this.st(loc, r, byte);
   }
 
   private illegal(): TrapInfo {
@@ -668,10 +613,7 @@ export class Cpu {
       case 0o206: take = !c; break; // BCC
       default: take = c; break; // BCS
     }
-    if (take) {
-      const off = w & 0o377;
-      this.r[PC] = (this.r[PC] + 2 * (off & 0o200 ? off - 0o400 : off)) & 0xffff;
-    }
+    if (take) this.r[PC] = (this.r[PC] + 2 * branchOffset(w)) & 0xffff;
   }
 
   private exec0(w: number): ExecResult {
@@ -794,8 +736,7 @@ export class Cpu {
         return 8;
       }
       case 2: { // ASH
-        const n = s & 0o77;
-        const cnt = n & 0o40 ? n - 0o100 : n;
+        const cnt = shiftCount(s);
         let v = rs;
         let c = false;
         let ov = false;
@@ -819,8 +760,7 @@ export class Cpu {
       default: { // ASHC
         const odd = (reg & 1) !== 0;
         let v = odd ? ((rv << 16) | rv) >>> 0 : ((rv << 16) | this.r[reg | 1]) >>> 0;
-        const n = s & 0o77;
-        const cnt = n & 0o40 ? n - 0o100 : n;
+        const cnt = shiftCount(s);
         let c = false;
         let ov = false;
         if (cnt > 0) {
@@ -846,4 +786,10 @@ type ExecResult = number | TrapInfo | { stop: StopReason } | 'rti-trace' | 'rtt'
 
 class DoubleFault {
   constructor(readonly trap: TrapInfo) {}
+}
+
+/** The signed 6-bit shift count of ASH / ASHC: −32…31. */
+function shiftCount(s: number): number {
+  const n = s & 0o77;
+  return n & 0o40 ? n - 0o100 : n;
 }

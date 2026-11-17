@@ -10,11 +10,11 @@
 
 export { Cpu, BUS_ERROR, VEC, PSW, PSW_ADDRESS } from './cpu';
 export type { Bus, CpuOptions, CpuState, CycleModel, RunResult, StopReason, TrapCause, TrapInfo } from './cpu';
-export { assemble } from './assembler';
-export type { AsmError, AsmLine, AssembleOptions, AssembleResult, NameStyle } from './assembler';
+export { assemble, commentStart } from './assembler';
+export type { AsmError, AsmLine, AssembleOptions, AssembleResult, NameStyle, Program } from './assembler';
 export { disassemble } from './disassembler';
 export type { Disassembled, DisassembleOptions } from './disassembler';
-export { INSTRUCTIONS, BY_NAME, decodeOp, octal } from './isa';
+export { INSTRUCTIONS, BY_NAME, decodeOp, octal, REGISTER_NAMES, REGISTERS } from './isa';
 export type { Format, OpInfo } from './isa';
 export { DeviceMachine, DL11, KW11L } from './devices';
 export type { Device, DeviceMachineOptions, DL11Options } from './devices';

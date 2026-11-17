@@ -8,7 +8,7 @@
  * `generateLevel` makes sure it does.
  */
 
-import { DX, DY, HEADING, MAP_SIZE } from './constants';
+import { DX, DY, MAP_SIZE } from './constants';
 import { FLAG, TYPE } from './objects';
 import { parseMap, type MapOptions } from './maps';
 import { Rng } from './rng';
@@ -43,6 +43,27 @@ export interface Level {
 const MIN_LEAF = 4;
 /** Monsters start at least this far (Manhattan) from the robot. */
 const MONSTER_DISTANCE = 6;
+
+/**
+ * Steps from (sx, sy) to every cell of a width × height area over cells where `open` is
+ * true (−1: not reached), breadth first, N E S W.
+ */
+function distances(width: number, height: number, sx: number, sy: number,
+  open: (x: number, y: number) => boolean): Int32Array {
+  const d = new Int32Array(width * height).fill(-1);
+  d[sy * width + sx] = 0;
+  const queue = [sx, sy];
+  for (let i = 0; i < queue.length; i += 2) {
+    const x = queue[i], y = queue[i + 1];
+    for (let h = 0; h < 4; h++) {
+      const nx = x + DX[h], ny = y + DY[h];
+      if (nx < 0 || ny < 0 || nx >= width || ny >= height || d[ny * width + nx] >= 0 || !open(nx, ny)) continue;
+      d[ny * width + nx] = d[y * width + x] + 1;
+      queue.push(nx, ny);
+    }
+  }
+  return d;
+}
 
 /** What depth (1 = the first level) brings. */
 export function difficulty(depth: number): Difficulty {
@@ -87,6 +108,8 @@ function generateOnce(seed: number, depth: number, worldSeed: number): Level {
   const at = (x: number, y: number) => cells[y][x];
   const put = (x: number, y: number, c: string) => { cells[y][x] = c; };
   const range = (lo: number, hi: number) => lo + rng.int(hi - lo + 1); // inclusive
+  /** A random floor cell of a room. */
+  const cellIn = (r: Room): [number, number] => [range(r.x, r.x + r.w - 1), range(r.y, r.y + r.h - 1)];
 
   // BSP: a leaf is the area between wall lines x0..x1, y0..y1 (both inclusive).
   const rooms: Room[] = [];
@@ -123,10 +146,8 @@ function generateOnce(seed: number, depth: number, worldSeed: number): Level {
 
   /** An L-shaped corridor between random cells of two rooms. */
   const corridor = (a: Room, b: Room) => {
-    let x = range(a.x, a.x + a.w - 1);
-    let y = range(a.y, a.y + a.h - 1);
-    const tx = range(b.x, b.x + b.w - 1);
-    const ty = range(b.y, b.y + b.h - 1);
+    let [x, y] = cellIn(a);
+    const [tx, ty] = cellIn(b);
     const xFirst = rng.int(2) === 0;
     const stepX = () => { while (x !== tx) { x += Math.sign(tx - x); put(x, y, '.'); } };
     const stepY = () => { while (y !== ty) { y += Math.sign(ty - y); put(x, y, '.'); } };
@@ -141,28 +162,12 @@ function generateOnce(seed: number, depth: number, worldSeed: number): Level {
     for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) if (at(x, y) === '.') out.push([x, y]);
     return out;
   };
-  const passable = (c: string) => c !== '#' && c !== '+';
-  const distances = (sx: number, sy: number): Int16Array => {
-    const d = new Int16Array(size * size).fill(-1);
-    d[sy * size + sx] = 0;
-    const queue = [sx, sy];
-    for (let i = 0; i < queue.length; i += 2) {
-      const x = queue[i];
-      const y = queue[i + 1];
-      for (const [nx, ny] of [[x, y - 1], [x + 1, y], [x, y + 1], [x - 1, y]]) {
-        if (nx < 0 || ny < 0 || nx >= size || ny >= size || d[ny * size + nx] >= 0 || !passable(at(nx, ny))) continue;
-        d[ny * size + nx] = d[y * size + x] + 1;
-        queue.push(nx, ny);
-      }
-    }
-    return d;
-  };
+  const passable = (x: number, y: number) => at(x, y) !== '#' && at(x, y) !== '+';
+  const fromCell = (x: number, y: number) => distances(size, size, x, y, passable);
 
   // The robot in a random room; the exit on the floor cell farthest from it.
-  const start = rooms[rng.int(rooms.length)];
-  const rx = range(start.x, start.x + start.w - 1);
-  const ry = range(start.y, start.y + start.h - 1);
-  const fromRobot = distances(rx, ry);
+  const [rx, ry] = cellIn(rooms[rng.int(rooms.length)]);
+  const fromRobot = fromCell(rx, ry);
   let exit: [number, number] = [rx, ry];
   for (const [x, y] of floor()) if (fromRobot[y * size + x] > fromRobot[exit[1] * size + exit[0]]) exit = [x, y];
   put(exit[0], exit[1], 'E');
@@ -180,8 +185,8 @@ function generateOnce(seed: number, depth: number, worldSeed: number): Level {
   // Chargers: in a room, not on a corridor, and only where every floor cell stays connected.
   const inRoom = (x: number, y: number) => rooms.some((r) => x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h);
   const connected = () => {
-    const d = distances(rx, ry);
-    for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) if (passable(at(x, y)) && d[y * size + x] < 0) return false;
+    const d = fromCell(rx, ry);
+    for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) if (passable(x, y) && d[y * size + x] < 0) return false;
     return true;
   };
   for (let i = 0; i < diff.chargers; i++) {
@@ -233,25 +238,12 @@ export function buildLevel(level: Level, opts: Omit<MapOptions, 'seed'> = {}): W
 export function checkLevel(world: World): string[] {
   const g = world.grid;
   const { width, height } = g;
-  const seen = new Uint8Array(width * height);
   const open = (x: number, y: number) => {
     const o = g.get('occupant', x, y);
     return !(o.flags & FLAG.SOLID) || !!(o.flags & FLAG.MOBILE);
   };
-  const queue = [world.robot.x, world.robot.y];
-  seen[world.robot.y * width + world.robot.x] = 1;
-  for (let i = 0; i < queue.length; i += 2) {
-    const x = queue[i];
-    const y = queue[i + 1];
-    for (let h = HEADING.N; h <= HEADING.W; h++) {
-      const nx = x + DX[h];
-      const ny = y + DY[h];
-      if (!g.inBounds(nx, ny) || seen[ny * width + nx] || !open(nx, ny)) continue;
-      seen[ny * width + nx] = 1;
-      queue.push(nx, ny);
-    }
-  }
-  const reached = (x: number, y: number) => g.inBounds(x, y) && seen[y * width + x] === 1;
+  const d = distances(width, height, world.robot.x, world.robot.y, open);
+  const reached = (x: number, y: number) => g.inBounds(x, y) && d[y * width + x] >= 0;
   const problems: string[] = [];
   let exits = 0;
   for (let y = 0; y < height; y++) {

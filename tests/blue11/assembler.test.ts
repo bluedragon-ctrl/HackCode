@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { assemble, disassemble, INSTRUCTIONS, octal, SimpleMachine } from '../../src/blue11';
+import { assemble, commentStart, disassemble, INSTRUCTIONS, octal, SimpleMachine } from '../../src/blue11';
 import { runAsm, words } from './helpers';
 
 const err = (src: string, opts = {}): string => {
@@ -288,5 +288,17 @@ RX:     MOVB @#177562, @#177566
     m.type('h'); m.type('i');
     m.run(1000);
     expect(m.output).toBe('hi');
+  });
+});
+
+describe('commentStart', () => {
+  it('finds the comment as the assembler does', () => {
+    expect(commentStart(' MOV R0, R1 ; copy')).toBe(12);
+    expect(commentStart(' MOV R0, R1')).toBe(-1);
+    expect(commentStart(" CMPB R0, #'; ; x")).toBe(14);
+    expect(commentStart(' CMP R0, #";A ; x')).toBe(14);
+    expect(commentStart(' .ASCIZ /a;b/ ; x')).toBe(14);
+    expect(commentStart(' .ASCII <15>/;/<12>;x')).toBe(19);
+    expect(commentStart(' .ASCII /unclosed;')).toBe(-1);
   });
 });

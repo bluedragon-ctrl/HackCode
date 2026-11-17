@@ -20,8 +20,9 @@ with links into the help, starter, goal, rules, hints and reference solution; pr
 
 ## 2. Expedition
 
-- A seeded BSP dungeon generator, a reachability check, difficulty that rises with depth,
-  and chargers placed in the generated maps.
+- ~~A seeded BSP dungeon generator, a reachability check, difficulty that rises with depth,
+  and chargers placed in the generated maps~~ (done: `src/core/dungeon.ts`, DESIGN.md §8).
+- The expedition mode in the page: a seed, level after level, deeper each time.
 - The math chip, which unlocks EIS.
 - **Done when:** 1000 seeds all generate solvable maps (this has a test).
 

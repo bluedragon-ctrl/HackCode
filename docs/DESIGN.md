@@ -150,6 +150,7 @@ The player works console-style: short snippets first, automating more over time.
 | `000400–137777` | RAM — user program and stack |
 | `140000–157777` | ROM BIOS, written in Blue-11 assembly; writes → bus error |
 | `176400–176507` | robot devices (§5) |
+| `176510–176551` | upgrade devices, present once bought (§8 "Upgrades") |
 | `177546` | KW11-L line clock, vector 100: ticks once per game tick of CPU time (200 cycles) |
 | `177560–177566` | DL11 console (debug printing), vectors 60 / 64 |
 
@@ -161,7 +162,9 @@ SP = origin. RAM, the world and time persist; "clear RAM" zeroes RAM first.
 
 ### Options
 
-- EIS (`MUL DIV ASH ASHC`) **off at start**; unlocked by finding a math chip (*later*: more upgrades).
+- EIS (`MUL DIV ASH ASHC`) **off at start**; unlocked by the math chip (§8 "Upgrades").
+- The other upgrade modules (shield, repair, rangefinder, overclock, fast wheels) are absent
+  until bought (§8 "Upgrades"): their registers are holes until then.
 - `protectModes` off in v1 (*later*: kernel/user modes for hacking mechanics).
 
 ### BIOS
@@ -421,7 +424,65 @@ of one expedition differs. The world's seed (monsters' random numbers) comes fro
   not solid or is a monster, the one exit and every coin can be reached, and every charger has
   a reachable cell beside it to dock from. `tests/core/dungeon.test.ts` checks 1000 seeds.
 - *Next:* the expedition mode in the page (level after level), the math chip in the
-  generated maps and EIS unlocked by it. Scoring *later* (ticks, energy, coins).
+  generated maps and EIS unlocked by it. Then upgrades (below).
+  Scoring *later* (ticks, energy, coins).
+
+### Upgrades and the shop
+
+Upgrades are modules built into the robot. Each one is a new problem to program, not just a
+bigger number: a device with registers, timing and an energy price. All numbers are first
+guesses, to be tuned in play.
+
+- **Bought with coins.** After each exit the expedition shows a shop: the modules not yet
+  owned, each with a price in coins (octal, as all numbers). Coins carry over from level to
+  level, so they finally have a use.
+- **Built in** once bought, for the rest of the expedition; destroyed with the robot. No
+  inventory slot is used.
+- **Absent until bought.** A module's registers are a hole on the bus (bus error, trap to 4),
+  as a missing card on the original machine: a program can probe for its hardware by
+  catching the trap.
+- **The math chip** (EIS: `MUL DIV ASH ASHC`) is also found in the generated maps, as
+  planned; the shop sells it to a player who missed it.
+- Each module gets predefined symbols (§5) and a help topic, hidden until it is owned.
+
+| module | price | registers | vector | what it does |
+|---|---|---|---|---|
+| Math chip | 30 (24.) | – | – | turns EIS on |
+| Rangefinder | 10 (8.) | `176530 RNGCSR`, `176532 RNGERR`, `176534 RNGDST` (4 words), `176544 RNGTYP` | 334 | distance and type of the first solid thing |
+| Shield | 40 (32.) | `176510 SHLCSR`, `176512 SHLERR` | 324 | blocks laser hits while up |
+| Repair | 40 (32.) | `176520 REPCSR`, `176522 REPERR`, `176524 REPCNT` | 330 | energy into HP |
+| Overclock | 50 (40.) | `176550 CPUCLK` | – | more CPU cycles a tick |
+| Fast wheels | 30 (24.) | – (the wheels, §5) | – | 3 ticks a cell instead of 4 |
+
+- **Rangefinder** — function 0 *ahead*: `RNGDST` = cells to the first solid or opaque
+  occupant along the heading (up to 14., the map's width; 0 = nothing before the edge),
+  `RNGTYP` = its TYPE. Function 1 *around*: the four distances N, E, S, W (absolute axes)
+  in `RNGDST` and the three words after it (`176534–176542`), `RNGTYP` = the type ahead.
+  1 tick, 1 energy. Cheaper and longer than the laser's distance,
+  simpler than the scanner's buffer: wall-following and corridors with one read.
+- **Shield** — function 0 *up*, 1 *down*. Raising takes 2 ticks (READY then means up);
+  lowering is at once. While up it covers **all sides**: laser hits do no damage, each costs
+  10 energy; contact damage still gets through, so chasers stay dangerous. It drains 4 energy
+  a tick while up and drops by itself with `ER.PWR` when energy runs out. **The robot's own
+  laser cannot fire while the shield is up** (`ER.BLK`), so a program alternates shield and
+  shot in step with a sentry's fire (3 ticks) and reload (6): a timing problem made for the
+  clock interrupt.
+- **Repair** — works as the dock (§5): `REPCNT` = HP to restore, 0 = until full; 1 HP every
+  2 ticks at 25 energy per HP (about 2500. from 0 to full). Only while the wheels are idle
+  (a move started meanwhile stops it with `ER.BLK`). Docked at a charger at the same time,
+  the charger pays for it: sleeping in `WAIT` on both interrupts turns a charger into a
+  hospital.
+- **Overclock** — `CPUCLK` = cycles per tick multiplier, 1, 2 or 4 (other values ignored),
+  1 at power-up and `RESET`. The tick is still the world's unit: devices, monsters and the
+  KW11-L line clock (once per game tick) don't speed up, only the CPU does more in a tick.
+  The price: the CPU drain per instruction is multiplied by the same factor. Worth it while a
+  program plans (a breadth-first path over the map is thousands of instructions); a good
+  program overclocks to think, then drops back and `WAIT`s.
+- **Fast wheels** — moving takes 3 ticks a cell and 7 energy instead of 4 and 5; turning
+  unchanged. Passive: no registers, the same wheels program goes faster (and out-runs a
+  chaser by more).
+
+*Later step:* more modules (decoy beacon, cloak, battery cell, cartographer; Roadmap).
 
 ## 9. Assembler notes (from `src/blue11/README.md`)
 

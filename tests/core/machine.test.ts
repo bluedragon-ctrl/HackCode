@@ -51,7 +51,7 @@ HNDLR:  MOV #1, R0
       expect(m.read(a, false), a.toString(8)).not.toBe(BUS_ERROR);
     }
     // holes
-    for (const a of [0o160000, 0o176406, 0o176416, 0o176454, 0o176500, 0o176376]) {
+    for (const a of [0o160000, 0o176406, 0o176436, 0o176454, 0o176500, 0o176376]) {
       expect(m.read(a, false), a.toString(8)).toBe(BUS_ERROR);
     }
   });

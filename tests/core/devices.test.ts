@@ -270,6 +270,89 @@ describe('laser', () => {
   });
 });
 
+describe('laser, aimed', () => {
+  /** Aim at LSRTGT = tgt (octal word), then halt with R0 = CSR, R1 = error. */
+  const aim = (tgt: string) => ` MOV #${tgt}, @#LSRTGT\n MOV #LS.AIM!CS.GO, @#LSRCSR\n` + poll('LSRCSR', 'LSRERR') + '\n';
+  const monster = () => record(0o40, 100, FLAG.SOLID | FLAG.HOSTILE);
+
+  it('hits a target off the heading line: DX | DY<<8, signed bytes', () => {
+    // Robot at (2,2) facing east; DX = 2, DY = -2 → (4,0), on the edge of the arc.
+    const w = load(aim('177002'));
+    w.grid.set('occupant', 4, 0, monster());
+    w.run(10);
+    expect(w.robot.cpu.r[1]).toBe(0);
+    expect(w.tick).toBe(TICKS.LASER);
+    expect(w.robot.machine.read(REG.LSRDST, false)).toBe(2);
+    expect(w.grid.get('occupant', 4, 0).hp).toBe(100 - LASER_DAMAGE);
+    expect(w.robot.energy).toBe(ENERGY_MAX - COST.LASER - w.robot.cpuEnergyUsed);
+  });
+
+  it('the first solid object on the Bresenham line takes the hit', () => {
+    // DX = 2, DY = 1: the line passes (3,2), then (4,3).
+    const w = load(aim('000402'));
+    w.grid.set('occupant', 3, 2, OBJECTS.wall());
+    w.grid.set('occupant', 4, 3, monster());
+    w.run(10);
+    expect(w.robot.machine.read(REG.LSRDST, false)).toBe(1);
+    expect(w.grid.get('occupant', 3, 2).hp).toBe(255 - LASER_DAMAGE);
+    expect(w.grid.get('occupant', 4, 3).hp).toBe(100);
+  });
+
+  it('the beam ends at the target cell', () => {
+    const w = load(aim('1'));
+    w.grid.set('occupant', 4, 2, monster());
+    w.run(10);
+    expect(w.robot.machine.read(REG.LSRDST, false)).toBe(0);
+    expect(w.robot.cpu.r[1]).toBe(0);
+    expect(w.grid.get('occupant', 4, 2).hp).toBe(100);
+  });
+
+  it('follows the heading: facing north, DX = -2, DY = -2 is in the arc', () => {
+    const w = load(aim('177376'), { robot: { x: 5, y: 5, heading: 0 } });
+    w.grid.set('occupant', 3, 3, monster());
+    w.run(10);
+    expect(w.robot.machine.read(REG.LSRDST, false)).toBe(2);
+    expect(w.grid.get('occupant', 3, 3).hp).toBe(100 - LASER_DAMAGE);
+  });
+
+  it('a target outside the 90° arc or the range is a bad argument, at once and free', () => {
+    // Facing east: (1,2) too far aside, (-1,0) behind, (0,0) the robot, (3,1) beyond range.
+    for (const tgt of ['001001', '377', '0', '000403']) {
+      const w = load(aim(tgt), { robot: { x: 5, y: 5, heading: 1 } });
+      w.run(1);
+      expect(w.robot.cpu.r[1], tgt).toBe(ERR.ARGUMENT);
+      expect(w.tick, tgt).toBe(0);
+      expect(w.robot.energy, tgt).toBe(ENERGY_MAX - w.robot.cpuEnergyUsed);
+    }
+  });
+
+  it('LSRTGT reads back and takes byte writes; LSRDST is read-only', () => {
+    const w = load(' MOV #1234, @#LSRTGT\n MOVB #377, @#LSRTGT+1\n MOV #7, @#LSRDST\n HALT');
+    w.run(1);
+    expect(w.robot.machine.read(REG.LSRTGT, false)).toBe(0o177634);
+    expect(w.robot.machine.read(REG.LSRDST, false)).toBe(0);
+  });
+
+  it('takes the DX/DY word of a scanner record as it is', () => {
+    const w = load(`
+        MOV #BUF, @#SCNBUF
+        MOV #20., @#SCNLEN
+        MOV #SC.NWL!CS.GO, @#SCNCSR
+1$:     TSTB @#SCNCSR
+        BPL 1$
+        MOV BUF+4, @#LSRTGT
+        MOV #LS.AIM!CS.GO, @#LSRCSR
+2$:     TSTB @#LSRCSR
+        BPL 2$
+        HALT
+BUF:    .BLKW 10.`);
+    w.grid.set('occupant', 3, 1, monster());
+    w.run(20);
+    expect(w.robot.machine.read(REG.LSRDST, false)).toBe(1);
+    expect(w.grid.get('occupant', 3, 1).hp).toBe(100 - LASER_DAMAGE);
+  });
+});
+
 describe('scanner', () => {
   const scan = (fn = 'SC.ALL', buf = 'BUF', len = '62.') => `
         MOV #${buf}, @#SCNBUF

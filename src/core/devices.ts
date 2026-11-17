@@ -13,7 +13,7 @@
 
 import { BUS_ERROR, type Cpu, type Device } from '../blue11';
 import {
-  COST, CSR, DEVICE_LEVEL, DX, DY, ERR, FN, INVENTORY_SLOTS, LASER_DAMAGE, LASER_RANGE, LASER_RANGE_SQ, MEMORY, REG,
+  CHARGE_RATE, COST, CSR, DEVICE_LEVEL, ENERGY_MAX, DX, DY, ERR, FN, INVENTORY_SLOTS, LASER_DAMAGE, LASER_RANGE, LASER_RANGE_SQ, MEMORY, REG,
   SCAN_RADIUS, SCAN_RANGE_SQ, TICKS, VECTOR,
 } from './constants';
 import { FLAG, TYPE, lootAmount, type ObjectRecord } from './objects';
@@ -398,6 +398,57 @@ export class Grabber extends ActionDevice {
   }
 
   reset(): void { super.reset(); this.slot = 0; }
+}
+
+// ---------------------------------------------------------------- dock
+
+/**
+ * Dock: charge from the charger in front, {@link CHARGE_RATE} energy a tick, DCKCNT energy
+ * (0 = until full). DCKCNT counts down and keeps what was not taken. Each tick checks the
+ * charger is still in front (the robot may turn away, the charger may be destroyed).
+ */
+export class Dock extends ActionDevice {
+  readonly base = REG.DCKCSR;
+  readonly vector = VECTOR.DOCK;
+  count = 0;
+
+  /** Charging now (for the display). */
+  get charging(): boolean { return this.busy > 0; }
+
+  private facingCharger(): boolean {
+    const r = this.robot;
+    return r.world.grid.typeAt('occupant', r.x + DX[r.heading], r.y + DY[r.heading]) === TYPE.CHARGER;
+  }
+
+  protected start(fn: number): Outcome {
+    if (fn << 1 !== FN.CHARGE) return { error: ERR.FUNCTION };
+    if (!this.facingCharger()) return { error: ERR.NOTHING };
+    if (this.robot.energy >= ENERGY_MAX) return { error: ERR.FULL };
+    return { ticks: 1 };
+  }
+
+  protected complete(): Outcome {
+    const r = this.robot;
+    if (!this.facingCharger()) return { error: ERR.NOTHING };
+    let gain = Math.min(CHARGE_RATE, ENERGY_MAX - r.energy);
+    if (this.count) gain = Math.min(gain, this.count);
+    r.energy += gain;
+    if (this.count) {
+      this.count -= gain;
+      if (this.count === 0) return done;
+    }
+    return r.energy >= ENERGY_MAX ? done : { ticks: 1 };
+  }
+
+  protected readReg(offset: number): number { return offset === 4 ? this.count : BUS_ERROR; }
+
+  protected writeReg(offset: number, value: number, byte: boolean): boolean {
+    if (offset >> 1 !== 2) return false;
+    if (this.ready) this.count = put(this.count, offset, value, byte);
+    return true;
+  }
+
+  reset(): void { super.reset(); this.count = 0; }
 }
 
 // ---------------------------------------------------------------- status, inventory

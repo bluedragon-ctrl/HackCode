@@ -47,11 +47,11 @@ HNDLR:  MOV #1, R0
 
   it('answers at the robot device, line clock and console addresses', () => {
     const m = world().robot.machine;
-    for (const a of [REG.WHLCSR, REG.LSRCSR, REG.SCNCSR, REG.GRBCSR, REG.STHP, REG.INV, REG.INV + 14, REG.LKS, REG.RCSR, REG.XBUF]) {
+    for (const a of [REG.WHLCSR, REG.LSRCSR, REG.SCNCSR, REG.GRBCSR, REG.DCKCSR, REG.DCKCNT, REG.STHP, REG.INV, REG.INV + 14, REG.LKS, REG.RCSR, REG.XBUF]) {
       expect(m.read(a, false), a.toString(8)).not.toBe(BUS_ERROR);
     }
     // holes
-    for (const a of [0o160000, 0o176406, 0o176436, 0o176454, 0o176500, 0o176376]) {
+    for (const a of [0o160000, 0o176406, 0o176436, 0o176454, 0o176506, 0o176510, 0o176376]) {
       expect(m.read(a, false), a.toString(8)).toBe(BUS_ERROR);
     }
   });

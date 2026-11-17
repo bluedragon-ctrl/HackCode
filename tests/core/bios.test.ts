@@ -1,7 +1,7 @@
 /** The BIOS in ROM (DESIGN.md §4): EMT calls, their conventions, and the vector set on load. */
 import { describe, expect, it } from 'vitest';
 import { VEC } from '../../src/blue11';
-import { BIOS_CALL, bios, biosEntry, ERR, HEADING, MEMORY, OBJECTS, SYMBOLS, TYPE, type World } from '../../src/core';
+import { BIOS_CALL, bios, biosEntry, ENERGY_MAX, ERR, HEADING, MEMORY, OBJECTS, SYMBOLS, TYPE, type World } from '../../src/core';
 import { asm, load, world } from './helpers';
 
 /** Run until HALT; the robot is at (2,2) facing east in a 12×12 world unless set up otherwise. */
@@ -122,6 +122,27 @@ describe('BIOS calls', () => {
     const w = run(' MOV #MSG, R0\n EMT PRINT\n HALT\nMSG: .ASCIZ /HELLO/');
     expect(w.robot.console.output).toBe('HELLO');
     expect(r(w, 0)).toBe(0);
+  });
+
+  it('CHARGE takes R0 energy (0 = until full) from the charger in front and returns what it gained', () => {
+    const charger = (w: World) => w.grid.set('occupant', 3, 2, OBJECTS.charger());
+    const full = world({ robot: { x: 2, y: 2, heading: 1, energy: 1000 } });
+    charger(full);
+    full.robot.load(asm(' CLR R0\n EMT CHARGE\n HALT'));
+    expect(full.run(2000).reason).toBe('halt');
+    expect(full.robot.energy).toBe(ENERGY_MAX);
+    expect(r(full, 0)).toBe(ENERGY_MAX - 1000);
+
+    const some = world({ robot: { x: 2, y: 2, heading: 1, energy: 1000 } });
+    charger(some);
+    some.robot.load(asm(' MOV #200., R0\n EMT CHARGE\n HALT'));
+    some.run(2000);
+    expect(some.robot.energy + some.robot.cpuEnergyUsed).toBe(1200);
+    expect(r(some, 0)).toBe(some.robot.energy - 1000);
+
+    const none = run(' CLR R0\n EMT CHARGE\n MOV @#PSW, R4\n HALT');
+    expect(r(none, 0)).toBe(ERR.NOTHING);
+    expect(r(none, 4) & C).toBe(C);
   });
 
   it('waits for a device the program left busy before using it', () => {

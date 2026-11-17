@@ -69,6 +69,8 @@ export const OBJECTS = {
   coins: (amount: number): ObjectRecord => record(TYPE.COIN, 1, FLAG.COLLECTIBLE, loot(LOOT.COINS, amount)),
   chip: (): ObjectRecord => record(TYPE.CHIP, 1, FLAG.COLLECTIBLE),
   exit: (): ObjectRecord => record(TYPE.EXIT, 0, 0),
+  /** Solid, but lasers and the scanner see past it; destructible like a wall. */
+  charger: (): ObjectRecord => record(TYPE.CHARGER, 255, FLAG.SOLID | FLAG.INTERACTIVE),
 };
 
 /** What a destroyed object with this LOOT byte drops, or null. */

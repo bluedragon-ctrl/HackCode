@@ -24,6 +24,7 @@ export const BIOS_SOURCE = `; Robot BIOS, in ROM from 140000. A program calls it
 ; EMT DROP    R0 = slot                 R0 = 0
 ; EMT PRINT   R0 = text (.ASCIZ)        R0 = 0     on the console
 ; EMT AIM     R0 = DX | DY<<8           R0 = steps to the hit, 0 = nothing hit
+; EMT CHARGE  R0 = energy, 0 = to full   R0 = energy gained  from the charger in front
 ;
 ; Success: C clear. Failure: C set and R0 = the error code (ER.BLK, ER.PWR, ...),
 ; so BCS right after the EMT catches it. Every other register is kept.
@@ -46,7 +47,8 @@ ENTRY:  MOV R1, -(SP)           ; keep R1: now (SP) = R1, 2(SP) = PC, 4(SP) = PS
 
 TABLE:  .WORD DOMOVE, DOBACK, DOLEFT, DORGHT, DOFIRE
         .WORD DOSCAN, DOGRAB, DODROP, DOPRNT, DOAIM
-NCALLS = 10.
+        .WORD DOCHRG
+NCALLS = 11.
 
 ; Return to the caller: restore R1, set or clear C in the saved PSW, RTI.
 OK:     MOV (SP)+, R1
@@ -146,6 +148,23 @@ DOPRNT: MOVB (R0)+, R1          ; next character
         BR DOPRNT
 2$:     CLR R0
         BR OK
+
+; ---------------------------------------------------------------- dock
+
+; Charge from the charger in front: R0 = energy to take, 0 = until full.
+; Returns the energy gained (less what the CPU used meanwhile).
+DOCHRG: MOV #DCKCSR, R1
+        JSR PC, IDLE
+        MOV R0, @#DCKCNT        ; how much
+        MOV @#STNRG, -(SP)      ; energy before
+        MOV #DK.CHG, R0
+        JSR PC, RUN
+        BCS 1$
+        MOV @#STNRG, R0
+        SUB (SP)+, R0           ; gained
+        JMP OK                  ; too far for BR
+1$:     TST (SP)+               ; drop the energy before
+        JMP FAIL
 
 ; ---------------------------------------------------------------- helpers
 

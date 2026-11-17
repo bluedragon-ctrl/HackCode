@@ -13,7 +13,8 @@ chaser and a sentry, each an `Actor` with a 4 KB machine, a motor, a sensor (a l
 sentry) and a behaviour script in
 Blue-11; contact and laser damage, loot; DESIGN.md §6; seeded behaviour checked in
 `tests/core/monsters.test.ts`); and the in-game help (Help / F1, sections, search,
-F1 on the word under the cursor, hover tooltips; DESIGN.md §7 "Help").
+F1 on the word under the cursor, hover tooltips; DESIGN.md §7 "Help"); and chargers (a charger
+object, the dock device and `EMT CHARGE`; DESIGN.md §5).
 
 ## 2. Lessons 0–7
 
@@ -25,7 +26,7 @@ F1 on the word under the cursor, hover tooltips; DESIGN.md §7 "Help").
 ## 3. Expedition
 
 - A seeded BSP dungeon generator, a reachability check, difficulty that rises with depth,
-  and chargers.
+  and chargers placed in the generated maps.
 - The math chip, which unlocks EIS.
 - **Done when:** 1000 seeds all generate solvable maps (this has a test).
 

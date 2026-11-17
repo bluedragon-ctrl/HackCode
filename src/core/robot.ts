@@ -4,7 +4,7 @@
  *
  *   000000–137777  RAM (vectors from 0, program from 1000 by default)
  *   140000–157777  ROM: the BIOS (src/core/bios.ts); writes are bus errors
- *   1764xx         robot devices
+ *   1764xx–1765xx  robot devices
  *   177546         KW11-L line clock, one tick per game tick of CPU time
  *   177560         DL11 console
  *
@@ -14,7 +14,7 @@
 import { BUS_ERROR, DeviceMachine, DL11, KW11L, VEC, type AssembleResult, type Cpu, type Device } from '../blue11';
 import { bios, biosEntry } from './bios';
 import { ENERGY_MAX, MEMORY, ROBOT_HP, TICK_CYCLES } from './constants';
-import { Grabber, Inventory, Laser, Scanner, Status, Wheels, type ActionDevice } from './devices';
+import { Dock, Grabber, Inventory, Laser, Scanner, Status, Wheels, type ActionDevice } from './devices';
 import { FLAG, record, TYPE } from './objects';
 import type { World } from './world';
 
@@ -73,6 +73,7 @@ export class Robot {
   readonly laser: Laser;
   readonly scanner: Scanner;
   readonly grabber: Grabber;
+  readonly dock: Dock;
   /** Action devices in the order they complete within a tick. */
   readonly actions: readonly ActionDevice[];
   /** Everything on the bus. */
@@ -88,7 +89,8 @@ export class Robot {
     this.laser = new Laser(this);
     this.scanner = new Scanner(this);
     this.grabber = new Grabber(this);
-    this.actions = [this.wheels, this.laser, this.scanner, this.grabber];
+    this.dock = new Dock(this);
+    this.actions = [this.wheels, this.laser, this.scanner, this.grabber, this.dock];
     this.devices = [this.rom, ...this.actions, new Status(this), new Inventory(this), this.clock, this.console];
     for (const d of this.devices) this.machine.add(d);
     const b = bios();

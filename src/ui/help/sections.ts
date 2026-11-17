@@ -7,7 +7,7 @@
 
 import { octal } from '../../blue11';
 import {
-  COST, DRAIN, ENERGY_MAX, INVENTORY_SLOTS, LASER_DAMAGE, LASER_RANGE, MEMORY, MONSTERS, REG, ROBOT_HP,
+  CHARGE_RATE, COST, DRAIN, ENERGY_MAX, INVENTORY_SLOTS, LASER_DAMAGE, LASER_RANGE, MEMORY, MONSTERS, REG, ROBOT_HP,
   SCAN_RADIUS, TICK_CYCLES, TICKS, VECTOR,
 } from '../../core';
 import { OP_GROUPS, opEntry } from './instructions';
@@ -49,7 +49,7 @@ const start: Section = {
       + `driving one cell takes ${TICKS.MOVE} ticks.`),
     p(`The robot starts with ${dec(ENERGY_MAX)} energy and ${dec(ROBOT_HP)} HP. Actions cost energy (see [devices](devices)), and so does thinking: `
       + `every ${dec(1 << DRAIN.SHIFT)} instructions executed cost 1 energy. A loop that only waits for a device burns energy; `
-      + `[WAIT](interrupts) sleeps almost for free.`),
+      + `[WAIT](interrupts) sleeps almost for free. A [charger](devices#sym-DCKCSR) refills it.`),
     note('Press **F1** in the editor to look up the word under the cursor: an instruction, a register, a device name.'),
   ],
 };
@@ -275,7 +275,7 @@ const bios: Section = {
   id: 'bios', title: 'BIOS calls (EMT)', group: MACHINE,
   blocks: [
     p('The BIOS is a small library in ROM that drives the devices for you. Put the argument in R0 (and R1 for `SCAN`) and write `EMT` with the call\'s name.'),
-    entries(...symbolEntries('MOVE', 'BACK', 'LEFT', 'RIGHT', 'FIRE', 'SCAN', 'GRAB', 'DROP', 'PRINT', 'AIM')),
+    entries(...symbolEntries('MOVE', 'BACK', 'LEFT', 'RIGHT', 'FIRE', 'SCAN', 'GRAB', 'DROP', 'PRINT', 'AIM', 'CHARGE')),
     h('The rules'),
     list(
       'A call **waits** until its device has finished, so the next line runs after the move, turn or shot.',
@@ -332,6 +332,7 @@ const devices: Section = {
       ['Laser', dec(TICKS.LASER), dec(COST.LASER)],
       ['Scanner', dec(TICKS.SCAN), dec(COST.SCAN)],
       ['Grabber', dec(TICKS.GRAB), dec(COST.GRAB)],
+      ['Dock', 'until done', `gives ${dec(CHARGE_RATE)} a tick`],
     ]),
     h('Wheels'),
     p('Drive `WHLCNT` cells forward or back without turning, or turn 90°. Anything in the way (a wall, a monster, the edge) stops the move with `ER.BLK`; `WHLCNT` then holds the cells left. Items on the floor do not block. Energy is charged per cell as it starts.'),
@@ -368,6 +369,24 @@ const devices: Section = {
     h('Grabber'),
     p(`**Grab** takes what is in front, if it is collectible: coins add to the coin count, anything else goes into the first free of ${INVENTORY_SLOTS} inventory slots (its number is then in \`GRBSLT\`). **Drop** puts slot \`GRBSLT\` (0–3) on the floor in front.`),
     entries(...symbolEntries('GRBCSR', 'GRBERR', 'GRBSLT', 'GR.GRB', 'GR.DRP', 'GRBVEC')),
+    h('Dock'),
+    p(`Plugs into the **charger** in front (\`T.CHRG\`) and refills energy, ${dec(CHARGE_RATE)} a tick: `
+      + `${dec(Math.ceil(ENERGY_MAX / CHARGE_RATE))} ticks from empty to full. \`DCKCNT\` is how much to take (0 = until full); it counts down. `
+      + 'The dock stops with `ER.NON` if the robot turns or moves away, or the charger is destroyed; it refuses with `ER.FUL` when the energy is full. '
+      + 'The CPU still uses energy meanwhile: sleep in [WAIT](interrupts) until the dock interrupts, and the robot keeps almost all of it. '
+      + 'Other devices work while it charges, and monsters keep moving.'),
+    entries(...symbolEntries('DCKCSR', 'DCKERR', 'DCKCNT', 'DK.CHG', 'DCKVEC')),
+    code(`
+      ; Face a charger, then sleep until full.
+              MOV  #FULL, @#DCKVEC
+              MOV  #340, @#DCKVEC+2
+              CLR  @#DCKCNT                 ; until full
+              MOV  #DK.CHG!CS.GO!CS.IE, @#DCKCSR
+              WAIT                          ; asleep while charging
+              HALT
+      FULL:   MOV  @#DCKERR, R0             ; 0, ER.NON or ER.FUL
+              RTI
+    `),
     h('Status and inventory'),
     p('Read-only words about the robot itself. Writes are ignored.'),
     entries(...symbolEntries('STHP', 'STNRG', 'STX', 'STY', 'STHDG', 'STCOIN', 'INV')),
@@ -391,7 +410,7 @@ const devices: Section = {
 const world: Section = {
   id: 'world', title: 'The world and its objects', group: MACHINE,
   blocks: [
-    p('The map is a grid of cells; x grows to the right, y downwards, and (0, 0) is the top left. A cell holds at most one **occupant** (a wall, the robot, a monster) and one **floor item** (coins, the exit).'),
+    p('The map is a grid of cells; x grows to the right, y downwards, and (0, 0) is the top left. A cell holds at most one **occupant** (a wall, the robot, a monster, a charger) and one **floor item** (coins, the exit).'),
     h('Object records'),
     p('Everything is described to the program by a 4-byte record: in the [scanner](devices#sym-SCNBUF)\'s results and in the [inventory](devices#sym-INV).'),
     table(['Byte', 'Field', 'Read it with'], [

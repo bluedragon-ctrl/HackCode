@@ -336,6 +336,24 @@ Lessons start with octal. Decimal literals (`10.`) are used for "human" quantiti
 
 Each lesson: hand-made map, win condition checked by the simulation, hints, reference solution.
 
+### Help
+
+In-game help (`src/ui/help/`): the **Help** button or **F1** opens a dialog with sections
+(getting started, running and debugging, the assembler, registers and flags, addressing
+modes, instructions, memory, the stack, BIOS calls, device registers, the world, interrupts,
+traps) and a symbol index, plus a search box. F1 in the editor opens the entry for the word
+under the cursor (an instruction, a predefined symbol, a register, a directive).
+
+- The content is data (`sections.ts`, blocks with a small inline markup), rendered by
+  `view.ts`; no DOM elsewhere, so it is tested.
+- Reference parts come from the code: every instruction in `INSTRUCTIONS` and every name in
+  `SYMBOLS` must have exactly one entry (`instructions.ts`, `symbols.ts`), and timings,
+  costs, ranges and monster stats are read from `src/core` constants.
+- Every example assembles with the prelude, and the runnable ones run on the test map to a
+  `HALT` of their own (`tests/ui/help.test.ts`).
+- *Later:* hover tooltips in the editor from the same entries, lessons linking into
+  sections, topics hidden until unlocked (EIS until the math chip).
+
 ## 8. Expedition (mode 2)
 
 Seeded procedural generation (BSP rooms + corridors), reachability check to the exit,

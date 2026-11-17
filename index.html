@@ -26,6 +26,7 @@
             <option value="raw">Raw device registers</option>
           </select>
           <button id="show-bios" class="secondary" title="Read the BIOS source">BIOS</button>
+          <button id="show-help" class="secondary" title="How to play: instructions, registers, memory, devices (F1)">Help</button>
           <label class="speed">Speed
             <select id="speed">
               <option value="5">5 ticks/s</option>
@@ -68,6 +69,17 @@
     <dialog id="bios">
       <div class="toolbar"><h2>BIOS source — ROM at 140000</h2><button id="close-bios" class="secondary">Close</button></div>
       <pre id="bios-source"></pre>
+    </dialog>
+    <dialog id="help" class="help">
+      <div class="toolbar">
+        <h2>Help</h2>
+        <input class="help-search" type="search" placeholder="Search: MOV, WHLCSR, stack…" spellcheck="false" aria-label="Search the help">
+        <button class="help-close secondary">Close</button>
+      </div>
+      <div class="help-body">
+        <nav class="help-nav"></nav>
+        <article class="help-content"></article>
+      </div>
     </dialog>
     <script type="module" src="./src/main.ts"></script>
   </body>

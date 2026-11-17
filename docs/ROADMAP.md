@@ -8,14 +8,11 @@ Canvas 2D map, Run / Continue / Pause / Step / Step tick, robot / CPU / console 
 map whose raw-register solution is checked in `tests/ui/session.test.ts`); and the BIOS in ROM
 (`EMT MOVE`, `LEFT`, `FIRE`, `SCAN`, `GRAB`, `DROP`, `PRINT`; DESIGN.md §4); and the
 debugger (breakpoints, heat map, disassembly, memory view, inline assembler errors; the
-step-equals-run world check is in `tests/ui/debug.test.ts`).
-
-## 1. Monsters
-
-- Each monster gets a small `DeviceMachine` (2–4 KB) running one behaviour script per
-  type, with its own sensor and motor devices, as an `Actor`.
-- Contact and laser damage, and loot drops.
-- **Done when:** a patrol monster and a chaser behave deterministically from a seed.
+step-equals-run world check is in `tests/ui/debug.test.ts`); and monsters (a patrol, a
+chaser and a sentry, each an `Actor` with a 4 KB machine, a motor, a sensor (a laser for the
+sentry) and a behaviour script in
+Blue-11; contact and laser damage, loot; DESIGN.md §6; seeded behaviour checked in
+`tests/core/monsters.test.ts`).
 
 ## 2. Lessons 0–7
 
@@ -34,4 +31,6 @@ step-equals-run world check is in `tests/ui/debug.test.ts`).
 ## Later
 
 Scoring (ticks, energy, coins), a probe device for hacking monsters, kernel/user modes,
-more upgrades, and tuning of timings and costs from play.
+more monster kinds with other behaviours, better monster pictures (the current ones are
+placeholder shapes), more upgrades, and tuning of timings and costs
+from play.

@@ -17,14 +17,20 @@ import {
   SCAN_RADIUS, SCAN_RANGE_SQ, TICKS, VECTOR,
 } from './constants';
 import { FLAG, TYPE, lootAmount, type ObjectRecord } from './objects';
+import type { Grid } from './grid';
 import type { Robot } from './robot';
+import type { World } from './world';
 
 /** What starting or completing a step of an action leads to. */
-type Outcome = { ticks: number } | { error: number };
-const done: Outcome = { error: ERR.NONE };
+export type Outcome = { ticks: number } | { error: number };
+export const done: Outcome = { error: ERR.NONE };
 
-export abstract class ActionDevice implements Device {
-  readonly size = 8;
+/**
+ * The common CSR protocol of an action device (DESIGN.md §5), with nobody behind it: the
+ * robot's devices ({@link ActionDevice}) and the monsters' motors build on it.
+ */
+export abstract class CsrDevice implements Device {
+  readonly size: number = 8;
   abstract readonly base: number;
   abstract readonly vector: number;
 
@@ -35,8 +41,6 @@ export abstract class ActionDevice implements Device {
   protected fn = 0;
   /** Ticks until the current step completes; 0 = idle. */
   protected busy = 0;
-
-  constructor(protected readonly robot: Robot) {}
 
   attach(cpu: Cpu): void { this.cpu = cpu; }
 
@@ -91,19 +95,24 @@ export abstract class ActionDevice implements Device {
     if (this.csr & CSR.IE) this.cpu.interrupt(this.vector, DEVICE_LEVEL);
   }
 
-  /** Spend energy, or fail with "no power". */
-  protected charge(cost: number, then: Outcome): Outcome {
-    if (this.robot.energy < cost) return { error: ERR.POWER };
-    this.robot.energy -= cost;
-    return then;
-  }
-
   /** GO: start function `fn` (0–7). */
   protected abstract start(fn: number): Outcome;
   /** The current step's time is up: apply its effect. */
   protected abstract complete(): Outcome;
   protected readReg(_offset: number): number { return BUS_ERROR; }
   protected writeReg(_offset: number, _value: number, _byte: boolean): boolean { return false; }
+}
+
+/** A robot device: actions cost the robot's energy. */
+export abstract class ActionDevice extends CsrDevice {
+  constructor(protected readonly robot: Robot) { super(); }
+
+  /** Spend energy, or fail with "no power". */
+  protected charge(cost: number, then: Outcome): Outcome {
+    if (this.robot.energy < cost) return { error: ERR.POWER };
+    this.robot.energy -= cost;
+    return then;
+  }
 }
 
 /** A 16-bit register written by words or bytes. */
@@ -188,22 +197,9 @@ export class Laser extends ActionDevice {
 
   protected complete(): Outcome {
     const { x, y, heading, world } = this.robot;
-    let path = this.path;
-    if (this.fn << 1 === FN.LASER_FIRE) {
-      path = [];
-      for (let d = 1; d <= LASER_RANGE; d++) path.push([DX[heading] * d, DY[heading] * d]);
-    }
-    this.distance = 0;
-    for (let i = 0; i < path.length; i++) {
-      const cx = x + path[i][0], cy = y + path[i][1];
-      if (!world.grid.inBounds(cx, cy)) break;
-      const o = world.grid.get('occupant', cx, cy);
-      if (o.type && o.flags & (FLAG.SOLID | FLAG.OPAQUE)) {
-        this.distance = i + 1;
-        world.damage(cx, cy, LASER_DAMAGE);
-        break;
-      }
-    }
+    this.distance = this.fn << 1 === FN.LASER_FIRE
+      ? beam(world, x, y, heading, LASER_RANGE, LASER_DAMAGE)
+      : hit(world, x, y, this.path, LASER_DAMAGE);
     return done;
   }
 
@@ -218,6 +214,34 @@ export class Laser extends ActionDevice {
   }
 
   reset(): void { super.reset(); this.distance = 0; this.target = 0; this.path = []; }
+}
+
+/**
+ * A laser beam from (x, y) up to `range` cells along `heading`: the first solid or opaque
+ * occupant takes `damage`. Returns the distance of the hit, 0 = nothing hit.
+ */
+export function beam(world: World, x: number, y: number, heading: number, range: number, damage: number): number {
+  const path: Array<[number, number]> = [];
+  for (let d = 1; d <= range; d++) path.push([DX[heading] * d, DY[heading] * d]);
+  return hit(world, x, y, path, damage);
+}
+
+/**
+ * A laser beam from (x, y) through the cells `path` (relative to it), stopped by the edge
+ * of the map: the first solid or opaque occupant takes `damage`. Returns its step number
+ * (1 = the first cell), 0 = nothing hit.
+ */
+export function hit(world: World, x: number, y: number, path: ReadonlyArray<readonly [number, number]>, damage: number): number {
+  for (let i = 0; i < path.length; i++) {
+    const cx = x + path[i][0], cy = y + path[i][1];
+    if (!world.grid.inBounds(cx, cy)) return 0;
+    const o = world.grid.get('occupant', cx, cy);
+    if (o.type && o.flags & (FLAG.SOLID | FLAG.OPAQUE)) {
+      world.damage(cx, cy, damage);
+      return i + 1;
+    }
+  }
+  return 0;
 }
 
 // ---------------------------------------------------------------- scanner
@@ -286,7 +310,7 @@ export function scan(robot: Robot, noWalls: boolean): Seen[] {
     for (let dx = -R; dx <= R; dx++) {
       const d = dx * dx + dy * dy;
       const x = robot.x + dx, y = robot.y + dy;
-      if (d > SCAN_RANGE_SQ || !grid.inBounds(x, y) || !lineOfSight(robot, dx, dy)) continue;
+      if (d > SCAN_RANGE_SQ || !grid.inBounds(x, y) || !lineOfSight(grid, robot.x, robot.y, dx, dy)) continue;
       const occ = grid.get('occupant', x, y);
       if (occ.type && d > 0 && !(noWalls && occ.type === TYPE.WALL)) out.push({ r: occ, dx, dy, d });
       const fl = grid.get('floor', x, y);
@@ -313,12 +337,11 @@ function line(dx: number, dy: number): Array<[number, number]> {
   return out;
 }
 
-/** No opaque occupant strictly between the robot and (dx, dy) on a Bresenham line. */
-function lineOfSight(robot: Robot, dx: number, dy: number): boolean {
-  const { grid } = robot.world;
+/** No opaque occupant strictly between (x0, y0) and (x0 + dx, y0 + dy) on a Bresenham line. */
+export function lineOfSight(grid: Grid, x0: number, y0: number, dx: number, dy: number): boolean {
   const cells = line(dx, dy);
   for (let i = 0; i < cells.length - 1; i++) {
-    if (grid.get('occupant', robot.x + cells[i][0], robot.y + cells[i][1]).flags & FLAG.OPAQUE) return false;
+    if (grid.get('occupant', x0 + cells[i][0], y0 + cells[i][1]).flags & FLAG.OPAQUE) return false;
   }
   return true;
 }

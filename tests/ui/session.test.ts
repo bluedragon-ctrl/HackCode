@@ -1,6 +1,6 @@
 /** The play session behind the page: Run / Continue / Step / Step tick, and the first map. */
 import { describe, expect, it } from 'vitest';
-import { MAP_SIZE } from '../../src/core';
+import { MAP_SIZE, ROBOT_HP, type Monster } from '../../src/core';
 import { Session } from '../../src/ui/session';
 import { BIOS_PROGRAM, TEST_MAP, TEST_PROGRAM } from '../../src/ui/samples';
 
@@ -24,6 +24,18 @@ describe('session', () => {
     const s = new Session(TEST_MAP);
     expect(s.load(BIOS_PROGRAM)).toEqual([]);
     expect(s.run(10_000).stop).toBe('won');
+    expect(s.world.robot.hp).toBe(ROBOT_HP); // the monsters never reached it
+  });
+
+  it('the test map has a patrol guarding the coins, a sentry and a chaser', () => {
+    const s = new Session(TEST_MAP);
+    const kinds = s.world.actors.map((a) => (a as Monster).kind.name);
+    expect(kinds).toEqual(['patrol', 'sentry', 'chaser']);
+    s.load(' 1$: BR 1$');
+    s.run(200);
+    const [p] = s.world.actors as Monster[];
+    // It circles the coin room: x 3–5, y 7–9.
+    expect(p.x >= 3 && p.x <= 5 && p.y >= 7 && p.y <= 9).toBe(true);
   });
 
   it('reports assembler errors and loads nothing', () => {

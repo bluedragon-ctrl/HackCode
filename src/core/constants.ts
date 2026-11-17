@@ -17,7 +17,7 @@ export const MEMORY = {
 /** Robot device registers (1764xx). Every action device: CSR at +0, error register at +2. */
 export const REG = {
   WHLCSR: 0o176400, WHLERR: 0o176402, WHLCNT: 0o176404,
-  LSRCSR: 0o176410, LSRERR: 0o176412, LSRDST: 0o176414,
+  LSRCSR: 0o176410, LSRERR: 0o176412, LSRDST: 0o176414, LSRTGT: 0o176416,
   SCNCSR: 0o176420, SCNERR: 0o176422, SCNBUF: 0o176424, SCNLEN: 0o176426,
   GRBCSR: 0o176430, GRBERR: 0o176432, GRBSLT: 0o176434,
   STHP: 0o176440, STNRG: 0o176442, STX: 0o176444, STY: 0o176446, STHDG: 0o176450, STCOIN: 0o176452,
@@ -32,7 +32,7 @@ export const REG = {
  * vector (030) is set to the BIOS on every load.
  */
 export const BIOS_CALL = {
-  MOVE: 0, BACK: 1, LEFT: 2, RIGHT: 3, FIRE: 4, SCAN: 5, GRAB: 6, DROP: 7, PRINT: 0o10,
+  MOVE: 0, BACK: 1, LEFT: 2, RIGHT: 3, FIRE: 4, SCAN: 5, GRAB: 6, DROP: 7, PRINT: 0o10, AIM: 0o11,
 } as const;
 
 /** Interrupt vectors (bus level {@link DEVICE_LEVEL}). */
@@ -66,6 +66,7 @@ export const FN = {
   WHEELS_RIGHT: 0o4,
   WHEELS_BACK: 0o6,
   LASER_FIRE: 0o0,
+  LASER_AIM: 0o2,
   SCAN_ALL: 0o0,
   SCAN_NO_WALLS: 0o2,
   GRAB: 0o0,
@@ -87,7 +88,7 @@ export const ERR = {
   NOTHING: 5,
   /** Inventory full. */
   FULL: 6,
-  /** Bad argument: wheel count 0, drop slot out of range or empty. */
+  /** Bad argument: wheel count 0, drop slot out of range or empty, laser target out of the arc or range. */
   ARGUMENT: 7,
 } as const;
 
@@ -128,7 +129,9 @@ export const ROBOT_HP = 100;
  */
 export const DRAIN = { PER_INSTRUCTION: 1, PER_TICK: 1, SHIFT: 6 } as const;
 
+/** Laser range: straight fire up to LASER_RANGE cells; aimed fire at dx² + dy² ≤ LASER_RANGE². */
 export const LASER_RANGE = 3;
+export const LASER_RANGE_SQ = LASER_RANGE * LASER_RANGE;
 export const LASER_DAMAGE = 40;
 /** Scanner range: cells with dx² + dy² ≤ SCAN_RADIUS². */
 export const SCAN_RADIUS = 5;

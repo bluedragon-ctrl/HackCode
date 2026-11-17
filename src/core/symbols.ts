@@ -37,6 +37,7 @@ export const SYMBOLS: Readonly<Record<string, number>> = Object.freeze({
   'WH.RGT': FN.WHEELS_RIGHT,
   'WH.BAK': FN.WHEELS_BACK,
   'LS.FIR': FN.LASER_FIRE,
+  'LS.AIM': FN.LASER_AIM,
   'SC.ALL': FN.SCAN_ALL,
   'SC.NWL': FN.SCAN_NO_WALLS,
   'GR.GRB': FN.GRAB,

@@ -172,6 +172,7 @@ the player (the BIOS button) for later lessons.
 | `GRAB` | 6 | – | R0 = inventory slot, or −1 for coins |
 | `DROP` | 7 | R0 = slot | R0 = 0 |
 | `PRINT` | 10 | R0 = `.ASCIZ` text | R0 = 0 (on the console) |
+| `AIM` | 11 | R0 = DX \| DY<<8 (as in a scan record) | R0 = steps to the hit, 0 = none |
 
 Conventions (as RT-11's system calls):
 
@@ -216,12 +217,12 @@ Every action device has its CSR at +0 and its **error register** at +2:
 | 4 | `ER.ADR` | scanner buffer odd, shorter than 2 bytes, or not entirely in RAM |
 | 5 | `ER.NON` | nothing to take |
 | 6 | `ER.FUL` | inventory full |
-| 7 | `ER.ARG` | bad argument (wheel count 0, drop slot out of range or empty) |
+| 7 | `ER.ARG` | bad argument (wheel count 0, drop slot out of range or empty, laser target outside the arc or range) |
 
 | device | registers | vector | functions | ticks | energy |
 |---|---|---|---|---|---|
 | Wheels | `176400 WHLCSR`, `176402 WHLERR`, `176404 WHLCNT` | 300 | 0 forward, 1 left, 2 right, 3 back | 4 per cell, turn 2 | 5 per cell, turn 2 |
-| Laser | `176410 LSRCSR`, `176412 LSRERR`, `176414 LSRDST` | 304 | 0 fire | 3 | 20 |
+| Laser | `176410 LSRCSR`, `176412 LSRERR`, `176414 LSRDST`, `176416 LSRTGT` | 304 | 0 fire, 1 aim | 3 | 20 |
 | Scanner | `176420 SCNCSR`, `176422 SCNERR`, `176424 SCNBUF`, `176426 SCNLEN` | 310 | 0 all, 1 no walls | 2 | 3 |
 | Grabber | `176430 GRBCSR`, `176432 GRBERR`, `176434 GRBSLT` | 314 | 0 grab, 1 drop | 2 | 2 |
 | Status | `176440 STHP`, `STNRG`, `STX`, `STY`, `STHDG`, `176452 STCOIN` | – | read-only | | |
@@ -235,6 +236,13 @@ Every action device has its CSR at +0 and its **error register** at +2:
 - **Laser** — straight beam up to 3 cells in heading direction; stops at the first solid
   or opaque occupant (walls included) and does 40 damage. `LSRDST` = distance of the hit,
   0 = nothing hit. At 0 HP the object is destroyed and drops its loot.
+  **Aim** fires at the cell `LSRTGT = DX | DY<<8` (signed bytes, absolute axes — the
+  scanner record's `word2`, so it can be copied straight in; latched at GO). The target
+  must lie in the 90° arc ahead (forward distance > 0 and ≥ the sideways distance) and
+  within dx² + dy² ≤ 9, else `ER.ARG` at once, with no energy spent. The beam follows the
+  scanner's Bresenham line and ends at the target cell; the first solid or opaque occupant
+  on the way takes the hit. `LSRDST` = steps along the line to it (compare with
+  max(|DX|, |DY|) to tell whether the target itself was hit), 0 = nothing hit.
 - **Scanner** — needs line of sight (Bresenham line; opaque occupants in between block;
   the target itself may be opaque). Range: dx² + dy² ≤ 25. Writes results into RAM at
   `SCNBUF` (`SCNLEN` bytes; both latched at GO; bounds-checked, `ER.ADR`). Nearest first
@@ -252,7 +260,7 @@ Every action device has its CSR at +0 and its **error register** at +2:
 - **Inventory** — 4 slots, memory-mapped, each a 4-byte object record. Writes ignored.
 
 The player gets all these names (and `CS.GO CS.FN CS.IE CS.RDY CS.ERR`, the function
-codes pre-shifted to bits 3–1 — `WH.FWD WH.LFT WH.RGT WH.BAK LS.FIR SC.ALL SC.NWL GR.GRB
+codes pre-shifted to bits 3–1 — `WH.FWD WH.LFT WH.RGT WH.BAK LS.FIR LS.AIM SC.ALL SC.NWL GR.GRB
 GR.DRP` —, the vectors `WHLVEC LSRVEC SCNVEC GRBVEC LKSVEC RCVVEC XMTVEC`, the error codes,
 headings `H.N H.E H.S H.W`, types `T.WALL T.ROBO T.EXIT T.CHRG T.COIN T.CHIP`, flags
 `F.MOB F.HOST F.SOLD F.OPAQ F.COLL F.INTR`, and `LKS RCSR RBUF XCSR XBUF PSW`) as

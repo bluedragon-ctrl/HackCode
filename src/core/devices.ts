@@ -13,7 +13,7 @@
 
 import { BUS_ERROR, type Cpu, type Device } from '../blue11';
 import {
-  COST, CSR, DEVICE_LEVEL, DX, DY, ERR, FN, INVENTORY_SLOTS, LASER_DAMAGE, LASER_RANGE, MEMORY, REG,
+  COST, CSR, DEVICE_LEVEL, DX, DY, ERR, FN, INVENTORY_SLOTS, LASER_DAMAGE, LASER_RANGE, LASER_RANGE_SQ, MEMORY, REG,
   SCAN_RADIUS, SCAN_RANGE_SQ, TICKS, VECTOR,
 } from './constants';
 import { FLAG, TYPE, lootAmount, type ObjectRecord } from './objects';
@@ -157,26 +157,49 @@ export class Wheels extends ActionDevice {
 
 // ---------------------------------------------------------------- laser
 
-/** Laser: a beam up to {@link LASER_RANGE} cells ahead; LSRDST = distance of the hit, 0 = none. */
+/**
+ * Laser. Fire: a beam up to {@link LASER_RANGE} cells ahead. Aim: a beam along the
+ * Bresenham line to the cell LSRTGT = DX | DY<<8 (signed bytes, absolute axes, as the
+ * scanner reports them), which must lie in the 90° arc ahead and within
+ * dx² + dy² ≤ {@link LASER_RANGE_SQ}; the beam ends at that cell. Either way the first solid
+ * or opaque occupant on the way takes the hit; LSRDST = steps to it, 0 = nothing hit.
+ */
 export class Laser extends ActionDevice {
   readonly base = REG.LSRCSR;
   readonly vector = VECTOR.LASER;
   distance = 0;
+  target = 0;
+  /** An aimed beam's cells, relative to the robot, fixed at GO (the arc is checked then). */
+  private path: Array<[number, number]> = [];
 
   protected start(fn: number): Outcome {
-    if (fn << 1 !== FN.LASER_FIRE) return { error: ERR.FUNCTION };
+    const h = this.robot.heading;
+    if (fn << 1 === FN.LASER_AIM) {
+      const dx = (this.target << 24) >> 24, dy = (this.target << 16) >> 24;
+      const ahead = dx * DX[h] + dy * DY[h];
+      const side = Math.abs(dx * DY[h] - dy * DX[h]);
+      if (ahead <= 0 || side > ahead || dx * dx + dy * dy > LASER_RANGE_SQ) return { error: ERR.ARGUMENT };
+      this.path = line(dx, dy);
+    } else if (fn << 1 !== FN.LASER_FIRE) {
+      return { error: ERR.FUNCTION };
+    }
     return this.charge(COST.LASER, { ticks: TICKS.LASER });
   }
 
   protected complete(): Outcome {
     const { x, y, heading, world } = this.robot;
+    let path = this.path;
+    if (this.fn << 1 === FN.LASER_FIRE) {
+      path = [];
+      for (let d = 1; d <= LASER_RANGE; d++) path.push([DX[heading] * d, DY[heading] * d]);
+    }
     this.distance = 0;
-    for (let d = 1; d <= LASER_RANGE; d++) {
-      const cx = x + DX[heading] * d, cy = y + DY[heading] * d;
+    for (let i = 0; i < path.length; i++) {
+      const cx = x + path[i][0], cy = y + path[i][1];
       if (!world.grid.inBounds(cx, cy)) break;
       const o = world.grid.get('occupant', cx, cy);
       if (o.type && o.flags & (FLAG.SOLID | FLAG.OPAQUE)) {
-        this.distance = d;
+        this.distance = i + 1;
         world.damage(cx, cy, LASER_DAMAGE);
         break;
       }
@@ -184,9 +207,17 @@ export class Laser extends ActionDevice {
     return done;
   }
 
-  protected readReg(offset: number): number { return offset === 4 ? this.distance : BUS_ERROR; }
-  protected writeReg(offset: number): boolean { return offset >> 1 === 2; }
-  reset(): void { super.reset(); this.distance = 0; }
+  protected readReg(offset: number): number {
+    return offset === 4 ? this.distance : offset === 6 ? this.target : BUS_ERROR;
+  }
+
+  protected writeReg(offset: number, value: number, byte: boolean): boolean {
+    if (offset >> 1 === 3) { if (this.ready) this.target = put(this.target, offset, value, byte); }
+    else if (offset >> 1 !== 2) return false; // LSRDST: read-only
+    return true;
+  }
+
+  reset(): void { super.reset(); this.distance = 0; this.target = 0; this.path = []; }
 }
 
 // ---------------------------------------------------------------- scanner
@@ -267,19 +298,29 @@ export function scan(robot: Robot, noWalls: boolean): Seen[] {
   return out.map(({ r, dx, dy }) => ({ r, dx, dy }));
 }
 
-/** No opaque occupant strictly between the robot and (dx, dy) on a Bresenham line. */
-function lineOfSight(robot: Robot, dx: number, dy: number): boolean {
-  const { grid } = robot.world;
+/** The cells of a Bresenham line from (0, 0) to (dx, dy): the start left out, the end included. */
+function line(dx: number, dy: number): Array<[number, number]> {
+  const out: Array<[number, number]> = [];
   const sx = Math.sign(dx), sy = Math.sign(dy);
   const ax = Math.abs(dx), ay = Math.abs(dy);
   let x = 0, y = 0, e = ax - ay;
-  while (true) {
+  while (x !== dx || y !== dy) {
     const e2 = 2 * e;
     if (e2 > -ay) { e -= ay; x += sx; }
     if (e2 < ax) { e += ax; y += sy; }
-    if (x === dx && y === dy) return true;
-    if (grid.get('occupant', robot.x + x, robot.y + y).flags & FLAG.OPAQUE) return false;
+    out.push([x, y]);
   }
+  return out;
+}
+
+/** No opaque occupant strictly between the robot and (dx, dy) on a Bresenham line. */
+function lineOfSight(robot: Robot, dx: number, dy: number): boolean {
+  const { grid } = robot.world;
+  const cells = line(dx, dy);
+  for (let i = 0; i < cells.length - 1; i++) {
+    if (grid.get('occupant', robot.x + cells[i][0], robot.y + cells[i][1]).flags & FLAG.OPAQUE) return false;
+  }
+  return true;
 }
 
 // ---------------------------------------------------------------- grabber

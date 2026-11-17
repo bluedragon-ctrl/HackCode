@@ -23,6 +23,7 @@ export const BIOS_SOURCE = `; Robot BIOS, in ROM from 140000. A program calls it
 ; EMT GRAB    -                         R0 = inventory slot, or -1 for coins
 ; EMT DROP    R0 = slot                 R0 = 0
 ; EMT PRINT   R0 = text (.ASCIZ)        R0 = 0     on the console
+; EMT AIM     R0 = DX | DY<<8           R0 = steps to the hit, 0 = nothing hit
 ;
 ; Success: C clear. Failure: C set and R0 = the error code (ER.BLK, ER.PWR, ...),
 ; so BCS right after the EMT catches it. Every other register is kept.
@@ -44,8 +45,8 @@ ENTRY:  MOV R1, -(SP)           ; keep R1: now (SP) = R1, 2(SP) = PC, 4(SP) = PS
         JMP @TABLE(R1)
 
 TABLE:  .WORD DOMOVE, DOBACK, DOLEFT, DORGHT, DOFIRE
-        .WORD DOSCAN, DOGRAB, DODROP, DOPRNT
-NCALLS = 9.
+        .WORD DOSCAN, DOGRAB, DODROP, DOPRNT, DOAIM
+NCALLS = 10.
 
 ; Return to the caller: restore R1, set or clear C in the saved PSW, RTI.
 OK:     MOV (SP)+, R1
@@ -85,6 +86,17 @@ DOFIRE: MOV #LSRCSR, R1
         JSR PC, RUN
         BCS FAIL
         MOV @#LSRDST, R0        ; how far the beam went
+        BR OK
+
+; Aim at a cell: R0 = DX | DY<<8, as in the scanner's records. It must be in
+; the 90-degree arc ahead and within range (dx*dx + dy*dy <= 9.), else ER.ARG.
+DOAIM:  MOV #LSRCSR, R1
+        JSR PC, IDLE
+        MOV R0, @#LSRTGT        ; the target
+        MOV #LS.AIM, R0
+        JSR PC, RUN
+        BCS FAIL
+        MOV @#LSRDST, R0        ; steps to the hit
         BR OK
 
 ; ---------------------------------------------------------------- scanner

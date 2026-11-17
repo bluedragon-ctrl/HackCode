@@ -83,6 +83,16 @@ describe('BIOS calls', () => {
     expect(r(w, 0)).toBe(0);
   });
 
+  it('AIM fires at R0 = DX | DY<<8 and returns the steps to the hit; out of the arc fails with ER.ARG', () => {
+    const w = run(' MOV #177002, R0\n EMT AIM\n MOV R0, R3\n HALT',
+      (w) => w.grid.set('occupant', 4, 0, OBJECTS.wall()));
+    expect(r(w, 3)).toBe(2);
+    expect(w.grid.get('occupant', 4, 0).hp).toBe(255 - 40);
+    const v = run(' MOV #001001, R0\n EMT AIM\n MOV @#PSW, R4\n HALT');
+    expect(r(v, 0)).toBe(ERR.ARGUMENT);
+    expect(r(v, 4) & C).toBe(C);
+  });
+
   it('SCAN fills the buffer and returns its address', () => {
     const w = run(' MOV #BUF, R0\n MOV #20., R1\n EMT SCAN\n HALT\nBUF: .BLKW 10.', (w) => w.grid.set('floor', 3, 2, OBJECTS.coins(4)));
     const buf = r(w, 0);

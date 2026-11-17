@@ -5,9 +5,20 @@
 
 import { assemble, type AsmError, type AssembleResult, type TrapInfo } from '../blue11';
 import { parseMap, SYMBOLS, type MapOptions, type TickReason, type World } from '../core';
+import { checkRules, EXIT_GOAL, type Goal, type Rules } from './lessons/model';
 
-/** Why the last command stopped. 'tick': it ran its ticks (or step) and can go on. */
-export type Stop = TickReason | 'won';
+/**
+ * Why the last command stopped. 'tick': it ran its ticks (or step) and can go on.
+ * 'won': the goal is reached; 'failed': it can no longer be ({@link Session.failure} says why).
+ */
+export type Stop = TickReason | 'won' | 'failed';
+
+export interface SessionOptions extends MapOptions {
+  /** What wins the map (default: the exit). */
+  goal?: Goal;
+  /** Rules on the program, checked by {@link Session.load}. */
+  rules?: Rules;
+}
 
 export interface StepResult {
   stop: Stop;
@@ -28,8 +39,12 @@ export class Session {
   breakpoints: ReadonlySet<number> = new Set();
   /** Instructions executed at each word address since the last load (the heat map). */
   readonly heat = new Uint32Array(0x8000);
+  /** Why the run failed, when {@link last} is 'failed'. */
+  failure: string | null = null;
+  readonly goal: Goal;
 
-  constructor(readonly map: string, private readonly mapOptions: MapOptions = {}) {
+  constructor(readonly map: string, private readonly options: SessionOptions = {}) {
+    this.goal = options.goal ?? EXIT_GOAL;
     this.world = this.newWorld();
   }
 
@@ -39,10 +54,11 @@ export class Session {
     this.loaded = null;
     this.program = null;
     this.last = null;
+    this.failure = null;
   }
 
   private newWorld(): World {
-    const w = parseMap(this.map, this.mapOptions);
+    const w = parseMap(this.map, this.options);
     w.robot.cpu.onInstruction = (pc) => { this.heat[pc >> 1]++; };
     return w;
   }
@@ -56,25 +72,29 @@ export class Session {
 
   /**
    * Assemble and load `source` (Run's first half): registers and devices reset, PC = start.
-   * The world, RAM and time persist. Returns errors; none = loaded.
+   * The world, RAM and time persist. Returns errors (a broken rule is one, on line 0);
+   * none = loaded.
    */
   load(source: string): AsmError[] {
     const asm = assemble(source, { symbols: SYMBOLS });
     if (!asm.ok) return asm.errors;
+    const broken = checkRules(this.options.rules, source, asm);
+    if (broken.length) return broken.map((message) => ({ line: 0, column: 0, message }));
     const err = this.world.robot.load(asm);
     if (err) return [{ line: 0, column: 0, message: err }];
     this.loaded = source;
     this.program = asm;
     this.last = null;
+    this.failure = null;
     this.heat.fill(0);
     return [];
   }
 
   get isLoaded(): boolean { return this.loaded !== null; }
 
-  /** The run is over: the exit reached or the robot destroyed. */
+  /** The run is over: the goal reached or missed, or the robot destroyed. */
   get over(): boolean {
-    return this.last === 'won' || this.last === 'destroyed' || this.world.robot.destroyed;
+    return this.last === 'won' || this.last === 'failed' || this.last === 'destroyed' || this.world.robot.destroyed;
   }
 
   /** Continue (and stepping) needs the loaded code unchanged and a CPU that can go on. */
@@ -95,7 +115,7 @@ export class Session {
       const r = this.world.runTick(this.breakpoints, resume && i === 0);
       cycles += r.cycles;
       instructions += r.instructions;
-      res = { stop: this.world.atExit ? 'won' : r.reason, cycles, instructions, trap: r.trap };
+      res = { stop: this.outcome(r.reason), cycles, instructions, trap: r.trap };
       if (res.stop !== 'tick') break;
     }
     this.last = res.stop;
@@ -113,6 +133,13 @@ export class Session {
     return this.run(1, true);
   }
 
+  /** The goal decides first: won, or failed (with the reason kept), else the tick's reason. */
+  private outcome(reason: TickReason): Stop {
+    if (this.goal.won(this.world)) return 'won';
+    this.failure = this.goal.failed?.(this.world) ?? null;
+    return this.failure ? 'failed' : reason;
+  }
+
   /** Continuing after HALT goes on with the next instruction, as on the console. */
   private unhalt(): void {
     const cpu = this.world.robot.cpu;
@@ -120,7 +147,7 @@ export class Session {
   }
 
   private finish(r: { reason: TickReason; cycles: number; instructions: number; trap?: TrapInfo }): StepResult {
-    const stop: Stop = this.world.atExit ? 'won' : r.reason;
+    const stop = this.outcome(r.reason);
     this.last = stop;
     return { stop, cycles: r.cycles, instructions: r.instructions, trap: r.trap };
   }

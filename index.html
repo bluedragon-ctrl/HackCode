@@ -10,6 +10,9 @@
     <header>
       <h1>HackCode</h1>
       <span class="tag">Program the robot in Blue-11 assembly — reach the exit</span>
+      <label class="lesson-pick">Lesson
+        <select id="lesson" title="Choose a lesson, or the sandbox"></select>
+      </label>
     </header>
     <main>
       <section class="pane code">
@@ -40,6 +43,19 @@
         <div id="editor"></div>
       </section>
       <section class="pane board">
+        <div id="lesson-bar" class="lesson-bar" hidden>
+          <div class="lesson-head"><span class="lesson-title"></span><span class="lesson-tick" title="Completed">✓</span></div>
+          <div class="lesson-goal"></div>
+          <div class="lesson-rules"></div>
+          <div class="lesson-hint"></div>
+          <div class="toolbar">
+            <button class="lesson-brief secondary" title="Read the lesson again">Briefing</button>
+            <button class="lesson-hint-button secondary" title="Show a hint">Hint</button>
+            <button class="lesson-starter secondary" title="Put the starter program back">Start over</button>
+            <button class="lesson-solution secondary" title="Show the reference solution">Solution</button>
+            <button class="lesson-next" title="On to the next lesson">Next lesson →</button>
+          </div>
+        </div>
         <canvas id="map"></canvas>
       </section>
       <section class="pane side">
@@ -69,6 +85,10 @@
     <dialog id="bios">
       <div class="toolbar"><h2>BIOS source — ROM at 140000</h2><button id="close-bios" class="secondary">Close</button></div>
       <pre id="bios-source"></pre>
+    </dialog>
+    <dialog id="briefing" class="briefing">
+      <div class="toolbar"><h2 class="brief-title"></h2><button class="brief-close">Start</button></div>
+      <article class="help-content brief-content"></article>
     </dialog>
     <dialog id="help" class="help">
       <div class="toolbar">

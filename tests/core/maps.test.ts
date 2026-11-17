@@ -21,6 +21,11 @@ describe('text maps', () => {
     expect(w.grid.typeAt('occupant', 2, 2)).toBe(0);
   });
 
+  it('reads + as a charger', () => {
+    const w = parseMap('>+');
+    expect(w.grid.get('occupant', 1, 0)).toEqual(OBJECTS.charger());
+  });
+
   it('passes robot options through', () => {
     const w = parseMap('>.', { robot: { energy: 7, hp: 3 } });
     expect([w.robot.energy, w.robot.hp]).toEqual([7, 3]);

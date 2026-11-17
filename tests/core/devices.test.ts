@@ -1,7 +1,7 @@
 /** Robot devices (DESIGN.md §5): common CSR behaviour, then each device. */
 import { describe, expect, it } from 'vitest';
 import {
-  COST, CSR, ENERGY_MAX, ERR, FLAG, LASER_DAMAGE, loot, LOOT, OBJECTS, record, REG, TICKS, TYPE, VECTOR,
+  CHARGE_RATE, COST, CSR, ENERGY_MAX, ERR, FLAG, LASER_DAMAGE, loot, LOOT, OBJECTS, record, REG, TICKS, TYPE, VECTOR,
 } from '../../src/core';
 import { load, world } from './helpers';
 
@@ -545,5 +545,107 @@ describe('status and inventory', () => {
     w.robot.inventory.set([1, 2, 3, 4], 12);
     expect(w.robot.machine.read(REG.INV + 12, false)).toBe(1 | (2 << 8));
     expect(w.robot.machine.read(REG.INV + 15, true)).toBe(4);
+  });
+});
+
+describe('dock', () => {
+  const dock = (count = 0) => ` MOV #${count.toString(8)}, @#DCKCNT\n MOV #DK.CHG!CS.GO, @#DCKCSR\n` + poll('DCKCSR', 'DCKERR');
+  /** A world with a charger in front of the robot (east of 2,2). */
+  const docked = (src: string, energy: number) => {
+    const w = load(src, { robot: { x: 2, y: 2, heading: 1, energy } });
+    w.grid.set('occupant', 3, 2, OBJECTS.charger());
+    return w;
+  };
+
+  it('a charger is a solid, interactive occupant the scanner and laser see past', () => {
+    expect(OBJECTS.charger()).toEqual(record(TYPE.CHARGER, 255, FLAG.SOLID | FLAG.INTERACTIVE));
+    expect(REG.DCKCSR).toBe(0o176500);
+    expect(VECTOR.DOCK).toBe(0o320);
+  });
+
+  it('charges CHARGE_RATE energy a tick from the charger in front until full', () => {
+    const w = docked(dock(), ENERGY_MAX - 3 * CHARGE_RATE - 5);
+    expect(w.run(20).reason).toBe('halt');
+    expect(w.robot.cpu.r[1]).toBe(0);
+    expect(w.robot.energy).toBe(ENERGY_MAX);
+    expect(w.tick).toBe(4);
+    expect(w.robot.machine.read(REG.DCKCNT, false)).toBe(0);
+  });
+
+  it('DCKCNT limits the energy taken and counts down; it keeps what is left when full first', () => {
+    const w = docked(dock(100), 1000);
+    w.run(20);
+    // The CPU's polling drain comes off too: count what the dock gave.
+    expect(w.robot.energy + w.robot.cpuEnergyUsed).toBe(1100);
+    expect(w.tick).toBe(Math.ceil(100 / CHARGE_RATE));
+    expect(w.robot.machine.read(REG.DCKCNT, false)).toBe(0);
+
+    const v = docked(dock(1000), ENERGY_MAX - 10);
+    v.run(20);
+    expect(v.robot.energy).toBe(ENERGY_MAX);
+    expect(v.robot.cpu.r[1]).toBe(0);
+    expect(v.robot.machine.read(REG.DCKCNT, false)).toBe(990 - v.robot.cpuEnergyUsed);
+  });
+
+  it('nothing to charge from in front, or a bad function, fails at once', () => {
+    const w = load(dock(), { robot: { x: 2, y: 2, heading: 1, energy: 100 } });
+    w.grid.set('occupant', 3, 2, OBJECTS.wall());
+    w.run(5);
+    expect(w.tick).toBe(0);
+    expect(w.robot.cpu.r[1]).toBe(ERR.NOTHING);
+    const v = docked(` MOV #2!CS.GO, @#DCKCSR\n` + poll('DCKCSR', 'DCKERR'), 100);
+    v.run(5);
+    expect(v.robot.cpu.r[1]).toBe(ERR.FUNCTION);
+  });
+
+  it('a full robot gets ER.FUL', () => {
+    const w = docked(dock(), ENERGY_MAX);
+    w.run(5);
+    expect(w.robot.cpu.r[1]).toBe(ERR.FULL);
+  });
+
+  it('stops with ER.NON when the robot turns away or the charger is destroyed', () => {
+    const w = docked(`
+        MOV #DK.CHG!CS.GO, @#DCKCSR
+        MOV #WH.LFT!CS.GO, @#WHLCSR` + poll('DCKCSR', 'DCKERR'), 1000);
+    w.run(20);
+    expect(w.robot.cpu.r[1]).toBe(ERR.NOTHING);
+    expect(w.tick).toBe(TICKS.TURN);
+    expect(w.robot.energy + w.robot.cpuEnergyUsed).toBe(1000 + (TICKS.TURN - 1) * CHARGE_RATE - COST.TURN);
+
+    const v = docked(dock(), 1000);
+    v.run(3);
+    v.grid.clear('occupant', 3, 2);
+    v.run(5);
+    expect(v.robot.cpu.r[1]).toBe(ERR.NOTHING);
+  });
+
+  it('interrupts when done, so the CPU can sleep in WAIT while it charges', () => {
+    const w = docked(`
+        MOV #DONE, @#DCKVEC
+        MOV #340, @#DCKVEC+2
+        MOV #DK.CHG!CS.GO!CS.IE, @#DCKCSR
+        WAIT
+        HALT
+DONE:   MOV #1, R5
+        RTI`, ENERGY_MAX - 10 * CHARGE_RATE);
+    expect(w.run(50).reason).toBe('halt');
+    expect(w.robot.cpu.r[5]).toBe(1);
+    expect(w.tick).toBe(10);
+    expect(w.robot.energy).toBe(ENERGY_MAX);
+  });
+
+  it('blocks the wheels and takes laser hits like a wall', () => {
+    const w = docked(`
+        MOV #1, @#WHLCNT
+        MOV #WH.FWD!CS.GO, @#WHLCSR
+3$:     TSTB @#WHLCSR
+        BPL 3$
+        MOV @#WHLERR, R3
+        MOV #LS.FIR!CS.GO, @#LSRCSR` + poll('LSRCSR', 'LSRERR'), 1000);
+    expect(w.run(20).reason).toBe('halt');
+    expect(w.robot.cpu.r[3]).toBe(ERR.BLOCKED);
+    expect(w.robot.x).toBe(2);
+    expect(w.grid.get('occupant', 3, 2).hp).toBe(255 - LASER_DAMAGE);
   });
 });

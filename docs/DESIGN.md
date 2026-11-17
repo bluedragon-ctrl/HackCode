@@ -61,7 +61,7 @@ Walls are destructible (e.g. `TYPE=1, HP=255, FLAGS=00001100`).
 | 1 | wall | occupant | HP 255, solid, opaque |
 | 2 | robot | occupant | HP 100, mobile, solid, opaque |
 | 3 | exit | floor | |
-| 4 | charger | occupant | interactive (*later*) |
+| 4 | charger | occupant | HP 255, solid, interactive; not opaque (lasers and the scanner see past it); feeds the dock (§5) |
 | 10 | coin pile | floor | collectible; worth LOOT bits 3–0 coins |
 | 11 | math chip | floor | collectible |
 | 40 | patrol | occupant | monster (§6) |
@@ -83,7 +83,7 @@ Lesson maps are at most this size and the expedition starts at it (deeper levels
 editor; the odd size gives a centre cell, (7, 7). The grid itself allows up to 256×256.
 
 Hand-made maps are text, one character per cell (`src/core/maps.ts`): `#` wall, `.` floor,
-`E` exit, `$` one coin, `1`–`9` a coin pile, `C` math chip, `^ > v <` the robot and its
+`E` exit, `$` one coin, `1`–`9` a coin pile, `C` math chip, `+` a charger, `^ > v <` the robot and its
 heading, `P` a patrol, `H` a chaser, `S` a sentry (monsters start facing north and get their IDs in reading
 order). A plain map is won when the robot stands on the exit.
 
@@ -99,7 +99,7 @@ monsters' behaviour every time.
      carried into the next tick);
   2. the CPU's energy drain for the tick is charged;
   3. the robot's busy devices count down; those due complete, in the order wheels, laser,
-     scanner, grabber: effect applied, READY set, interrupt requested if IE;
+     scanner, grabber, dock: effect applied, READY set, interrupt requested if IE;
   4. the monsters act, in ID order.
 - Physical actions take time: a device stays busy for K ticks (CSR READY clear) and
   **takes effect on completion**; collisions etc. are checked then. An action started
@@ -149,7 +149,7 @@ The player works console-style: short snippets first, automating more over time.
 | `000000–000377` | trap and interrupt vectors (not protected in v1) |
 | `000400–137777` | RAM — user program and stack |
 | `140000–157777` | ROM BIOS, written in Blue-11 assembly; writes → bus error |
-| `176400–176477` | robot devices (§5) |
+| `176400–176507` | robot devices (§5) |
 | `177546` | KW11-L line clock, vector 100: ticks once per game tick of CPU time (200 cycles) |
 | `177560–177566` | DL11 console (debug printing), vectors 60 / 64 |
 
@@ -181,6 +181,7 @@ the player (the BIOS button) for later lessons.
 | `DROP` | 7 | R0 = slot | R0 = 0 |
 | `PRINT` | 10 | R0 = `.ASCIZ` text | R0 = 0 (on the console) |
 | `AIM` | 11 | R0 = DX \| DY<<8 (as in a scan record) | R0 = steps to the hit, 0 = none |
+| `CHARGE` | 12 | R0 = energy to take, 0 = until full | R0 = energy gained (net of the CPU's drain meanwhile) |
 
 Conventions (as RT-11's system calls):
 
@@ -223,8 +224,8 @@ Every action device has its CSR at +0 and its **error register** at +2:
 | 2 | `ER.FN` | no such function |
 | 3 | `ER.BLK` | way blocked (wheels), no room to drop (grabber) |
 | 4 | `ER.ADR` | scanner buffer odd, shorter than 2 bytes, or not entirely in RAM |
-| 5 | `ER.NON` | nothing to take |
-| 6 | `ER.FUL` | inventory full |
+| 5 | `ER.NON` | nothing to take (grabber), no charger in front (dock) |
+| 6 | `ER.FUL` | inventory full (grabber), energy full (dock) |
 | 7 | `ER.ARG` | bad argument (wheel count 0, drop slot out of range or empty, laser target outside the arc or range) |
 
 | device | registers | vector | functions | ticks | energy |
@@ -233,6 +234,7 @@ Every action device has its CSR at +0 and its **error register** at +2:
 | Laser | `176410 LSRCSR`, `176412 LSRERR`, `176414 LSRDST`, `176416 LSRTGT` | 304 | 0 fire, 1 aim | 3 | 20 |
 | Scanner | `176420 SCNCSR`, `176422 SCNERR`, `176424 SCNBUF`, `176426 SCNLEN` | 310 | 0 all, 1 no walls | 2 | 3 |
 | Grabber | `176430 GRBCSR`, `176432 GRBERR`, `176434 GRBSLT` | 314 | 0 grab, 1 drop | 2 | 2 |
+| Dock | `176500 DCKCSR`, `176502 DCKERR`, `176504 DCKCNT` | 320 | 0 charge | 1 per step, until done | none; gives 50 (40.) a tick |
 | Status | `176440 STHP`, `STNRG`, `STX`, `STY`, `STHDG`, `176452 STCOIN` | – | read-only | | |
 | Inventory | `176460 INV`: 4 slots × 4 bytes, to `176477` | – | read-only | | |
 
@@ -264,12 +266,22 @@ Every action device has its CSR at +0 and its **error register** at +2:
   anything else goes into the first free inventory slot (`ER.FUL` if none), whose number
   is then in `GRBSLT`. Drop: puts slot `GRBSLT` (0–3) on the floor in front (`ER.ARG` if
   empty or out of range, `ER.BLK` if the floor there is taken or outside).
+- **Dock** — charges from the charger in front (`T.CHRG`), `CHARGE_RATE` = 50 (40.) energy a
+  tick, so 250. ticks from empty to full. `DCKCNT` is the energy to take, 0 = until full
+  (written while READY, counts down, keeps what was not taken when the robot is full first).
+  GO fails at once with `ER.NON` if no charger is in front, `ER.FUL` if energy is full.
+  Each step lasts one tick; on completion the charger must still be in front (the robot may
+  have turned or moved, the charger may be destroyed), else `ER.NON`. Done when full or
+  `DCKCNT` reaches 0. The CPU drain still applies: sleeping in `WAIT` until the dock's
+  interrupt keeps almost all of the charge, polling wastes some. Other devices work while
+  it charges. Chargers have no store of their own in v1 — the price of charging is the time
+  monsters get (*later*: a limited store, if the expedition needs one).
 - **Status** — read-only: HP, energy (max 10000.), X, Y, heading, coins. Writes ignored.
 - **Inventory** — 4 slots, memory-mapped, each a 4-byte object record. Writes ignored.
 
 The player gets all these names (and `CS.GO CS.FN CS.IE CS.RDY CS.ERR`, the function
 codes pre-shifted to bits 3–1 — `WH.FWD WH.LFT WH.RGT WH.BAK LS.FIR LS.AIM SC.ALL SC.NWL GR.GRB
-GR.DRP` —, the vectors `WHLVEC LSRVEC SCNVEC GRBVEC LKSVEC RCVVEC XMTVEC`, the error codes,
+GR.DRP DK.CHG` —, the vectors `WHLVEC LSRVEC SCNVEC GRBVEC DCKVEC LKSVEC RCVVEC XMTVEC`, the error codes,
 headings `H.N H.E H.S H.W`, types `T.WALL T.ROBO T.EXIT T.CHRG T.COIN T.CHIP`, flags
 `F.MOB F.HOST F.SOLD F.OPAQ F.COLL F.INTR`, monster types `T.PTRL T.CHSR T.SNTR`, and `LKS RCSR RBUF XCSR XBUF PSW`) as
 predefined symbols: `src/core/symbols.ts`. Example: `MOV #WH.RGT!CS.GO!CS.IE, @#WHLCSR`.
@@ -373,6 +385,5 @@ difficulty rising with depth. Scoring *later* (ticks, energy, coins).
 
 ## 10. Open items
 
-- Chargers,
-  unlocking EIS with the math chip. Timings and energy costs are first guesses, to be
+- Unlocking EIS with the math chip. Timings and energy costs are first guesses, to be
   tuned in play.

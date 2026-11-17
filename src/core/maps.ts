@@ -4,6 +4,7 @@
  *   #  wall                 .  floor (a space too)
  *   E  exit                 $  a coin       1–9  a pile of that many coins
  *   C  math chip            ^ > v <  the robot, facing N E S W (exactly one)
+ *   +  a charger
  *   P  a patrol   H  a chaser   S  a sentry   (monsters start facing north)
  *
  * Leading and trailing blank lines are ignored; all rows must have the same length.
@@ -54,6 +55,7 @@ export function parseMap(text: string, opts: MapOptions = {}): World {
     else if (ch === '$') g.set('floor', x, y, OBJECTS.coins(1));
     else if (ch >= '1' && ch <= '9') g.set('floor', x, y, OBJECTS.coins(ch.charCodeAt(0) - 48));
     else if (ch === 'C') g.set('floor', x, y, OBJECTS.chip());
+    else if (ch === '+') g.set('occupant', x, y, OBJECTS.charger());
     else if (ch in MONSTER) addMonster(world, MONSTER[ch], x, y, HEADING.N);
     else if (ch !== '.' && ch !== ' ' && !(ch in ROBOT)) throw new Error(`map: unknown cell '${ch}' at ${x},${y}`);
   }));

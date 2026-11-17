@@ -38,6 +38,7 @@ main > .code { display: flex; flex-direction: column; height: calc(100vh - 5.5re
 #map { display: block; }
 .bar { height: 6px; background: #000; border: 1px solid var(--line); margin-bottom: 0.25rem; }
 #energy-bar { height: 100%; background: #4dff9a; box-shadow: 0 0 6px #4dff9a; }
+#energy-bar.charging { background: #b8ffd8; box-shadow: 0 0 10px #4dff9a, 0 0 3px #fff; }
 #output { min-height: 2rem; max-height: 10rem; overflow: auto; }
 .side h2:first-child { margin-top: 0; }
 pre { margin: 0; padding: 0.5rem; background: #000; border: 1px solid var(--line); min-height: 3rem; white-space: pre-wrap; }

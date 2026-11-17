@@ -20,6 +20,7 @@ export const SYMBOLS: Readonly<Record<string, number>> = Object.freeze({
   LSRVEC: VECTOR.LASER,
   SCNVEC: VECTOR.SCANNER,
   GRBVEC: VECTOR.GRABBER,
+  DCKVEC: VECTOR.DOCK,
   LKSVEC: VECTOR.CLOCK,
   RCVVEC: VECTOR.CONSOLE_RX,
   XMTVEC: VECTOR.CONSOLE_TX,
@@ -42,6 +43,7 @@ export const SYMBOLS: Readonly<Record<string, number>> = Object.freeze({
   'SC.NWL': FN.SCAN_NO_WALLS,
   'GR.GRB': FN.GRAB,
   'GR.DRP': FN.DROP,
+  'DK.CHG': FN.CHARGE,
 
   // Error codes
   'ER.PWR': ERR.POWER,

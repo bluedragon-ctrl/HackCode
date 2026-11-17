@@ -11,6 +11,8 @@ const COLOR = {
   exit: '#4dff9a',
   coin: '#ffd23f',
   chip: '#ff4dd2',
+  charger: '#4dff9a',
+  chargerFill: '#06261a',
   robot: '#00f0ff',
   dead: '#ff5a5a',
   patrol: '#ffb000',
@@ -70,6 +72,8 @@ export class CanvasRenderer implements Renderer {
         if (occ.type === TYPE.ROBOT) this.robot(world, x, y, cell);
         else if (monsterKind(occ.type)) {
           this.monster(occ, headings.get(y * g.width + x) ?? 0, world, x, y, cell);
+        } else if (occ.type === TYPE.CHARGER) {
+          this.charger(occ, px, py, cell, this.feeding(world, x, y));
         } else if (occ.type) this.occupant(occ, px, py, cell);
       }
     }
@@ -137,6 +141,38 @@ export class CanvasRenderer implements Renderer {
     } else {
       this.unknown(px, py, s);
     }
+    ctx.restore();
+  }
+
+  /** The robot's dock is charging from the charger at (x, y). */
+  private feeding(world: World, x: number, y: number): boolean {
+    const r = world.robot;
+    return r.dock.charging && r.x + DX[r.heading] === x && r.y + DY[r.heading] === y;
+  }
+
+  /** A charging pylon: a socket with a bolt; it glows brighter, pulsing, while it feeds the robot. */
+  private charger(o: ObjectRecord, px: number, py: number, s: number, feeding: boolean): void {
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.fillStyle = COLOR.chargerFill;
+    ctx.fillRect(px + s * 0.12, py + s * 0.12, s * 0.76, s * 0.76);
+    const alpha = 0.4 + 0.6 * (o.hp / 255);
+    ctx.globalAlpha = alpha;
+    this.glow(COLOR.charger, feeding ? 18 : 6);
+    ctx.strokeStyle = COLOR.charger;
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(px + s * 0.12, py + s * 0.12, s * 0.76, s * 0.76);
+    ctx.fillStyle = COLOR.charger;
+    ctx.beginPath();
+    ctx.moveTo(px + s * 0.56, py + s * 0.2);
+    ctx.lineTo(px + s * 0.32, py + s * 0.54);
+    ctx.lineTo(px + s * 0.48, py + s * 0.54);
+    ctx.lineTo(px + s * 0.42, py + s * 0.8);
+    ctx.lineTo(px + s * 0.68, py + s * 0.44);
+    ctx.lineTo(px + s * 0.52, py + s * 0.44);
+    ctx.closePath();
+    if (feeding) ctx.fill();
+    else ctx.stroke();
     ctx.restore();
   }
 

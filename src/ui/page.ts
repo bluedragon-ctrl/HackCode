@@ -101,10 +101,12 @@ export function startPage(): void {
     const r = w.robot;
     const cpu = r.cpu;
     renderer.draw(w);
-    $<HTMLDivElement>('energy-bar').style.width = `${(100 * r.energy) / ENERGY_MAX}%`;
+    const bar = $<HTMLDivElement>('energy-bar');
+    bar.style.width = `${(100 * r.energy) / ENERGY_MAX}%`;
+    bar.classList.toggle('charging', r.dock.charging);
     $<HTMLPreElement>('robot').textContent = [
       `HP     ${r.hp.toString().padStart(6)}.`,
-      `Energy ${r.energy.toString().padStart(6)}.`,
+      `Energy ${r.energy.toString().padStart(6)}.${r.dock.charging ? ' charging' : ''}`,
       `Coins  ${octal(r.coins)}`,
       `X Y    ${octal(r.x, 3)} ${octal(r.y, 3)}`,
       `Facing ${HEADINGS[r.heading]}`,

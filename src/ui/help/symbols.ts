@@ -41,6 +41,12 @@ export const SYMBOL_HELP: Readonly<Record<string, string>> = {
   'GR.GRB': 'Grabber function: take what is in front.',
   'GR.DRP': 'Grabber function: drop slot `GRBSLT` in front.',
   GRBVEC: 'Grabber interrupt vector.',
+  // Dock
+  DCKCSR: 'Dock control and status.',
+  DCKERR: 'Dock error code (`ER.NON`, `ER.FUL`).',
+  DCKCNT: 'Energy to take from the charger, 0 = until full. Counts down; keeps what was not taken.',
+  'DK.CHG': 'Dock function: charge from the charger in front.',
+  DCKVEC: 'Dock interrupt vector.',
   // Status and inventory
   STHP: 'The robot\'s hit points (read only).',
   STNRG: 'The robot\'s energy (read only).',
@@ -60,8 +66,8 @@ export const SYMBOL_HELP: Readonly<Record<string, string>> = {
   'ER.FN': 'No such function, or no such BIOS call.',
   'ER.BLK': 'The way is blocked (wheels), or there is no room to drop (grabber).',
   'ER.ADR': 'The scanner buffer is odd, shorter than 2 bytes, or not all in RAM.',
-  'ER.NON': 'Nothing to take.',
-  'ER.FUL': 'The inventory is full.',
+  'ER.NON': 'Nothing to take (grabber), no charger in front (dock).',
+  'ER.FUL': 'The inventory is full (grabber), the energy is full (dock).',
   'ER.ARG': 'A bad argument: wheel count 0, a drop slot out of range or empty, a laser target outside the arc or range.',
   // BIOS calls
   MOVE: 'Drive R0 cells forward.',
@@ -74,6 +80,7 @@ export const SYMBOL_HELP: Readonly<Record<string, string>> = {
   DROP: 'Drop inventory slot R0 in front.',
   PRINT: 'Print the `.ASCIZ` text at R0 on the console.',
   AIM: 'Fire at the cell R0 = `DX | DY<<8`. R0 = steps to the hit, 0 if nothing.',
+  CHARGE: 'Charge R0 energy (0 = until full) from the charger in front. R0 = the energy gained.',
   // Console, clock, PSW
   LKS: 'Line clock status: bit 7 is set every tick, bit 6 (IE) interrupts every tick.',
   LKSVEC: 'Line clock interrupt vector.',
@@ -93,7 +100,7 @@ export const SYMBOL_HELP: Readonly<Record<string, string>> = {
   'T.WALL': 'A wall. Walls can be shot down (HP 377).',
   'T.ROBO': 'A robot.',
   'T.EXIT': 'The exit: drive onto it to win.',
-  'T.CHRG': 'A charger.',
+  'T.CHRG': 'A charger: face it and use the dock (`EMT CHARGE`) to refill energy.',
   'T.COIN': 'A pile of coins: LOOT holds how many.',
   'T.CHIP': 'A math chip.',
   'T.PTRL': 'A patrol monster.',

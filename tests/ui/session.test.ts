@@ -1,6 +1,6 @@
 /** The play session behind the page: Run / Continue / Step / Step tick, and the first map. */
 import { describe, expect, it } from 'vitest';
-import { MAP_SIZE, ROBOT_HP, type Monster } from '../../src/core';
+import { ENERGY_MAX, MAP_SIZE, ROBOT_HP, TYPE, type Monster } from '../../src/core';
 import { Session } from '../../src/ui/session';
 import { BIOS_PROGRAM, TEST_MAP, TEST_PROGRAM } from '../../src/ui/samples';
 
@@ -25,6 +25,31 @@ describe('session', () => {
     expect(s.load(BIOS_PROGRAM)).toEqual([]);
     expect(s.run(10_000).stop).toBe('won');
     expect(s.world.robot.hp).toBe(ROBOT_HP); // the monsters never reached it
+  });
+
+  it('the test map has a charger the robot faces on its way', () => {
+    const s = new Session(TEST_MAP);
+    expect(s.world.grid.typeAt('occupant', 1, 6)).toBe(TYPE.CHARGER);
+    // The route's first legs: to (1, 5), facing south.
+    expect(s.load(`
+        MOV #4, R0
+        EMT MOVE
+        EMT RIGHT
+        MOV #2, R0
+        EMT MOVE
+        EMT RIGHT
+        MOV #4, R0
+        EMT MOVE
+        EMT LEFT
+        MOV #2, R0
+        EMT MOVE
+        CLR R0
+        EMT CHARGE
+        HALT`)).toEqual([]);
+    s.world.robot.energy = 5000;
+    expect(s.run(10_000).stop).toBe('halt');
+    expect([s.world.robot.x, s.world.robot.y]).toEqual([1, 5]);
+    expect(s.world.robot.energy).toBe(ENERGY_MAX);
   });
 
   it('the test map has a patrol guarding the coins, a sentry and a chaser', () => {

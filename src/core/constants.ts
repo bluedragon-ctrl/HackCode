@@ -22,6 +22,7 @@ export const REG = {
   GRBCSR: 0o176430, GRBERR: 0o176432, GRBSLT: 0o176434,
   STHP: 0o176440, STNRG: 0o176442, STX: 0o176444, STY: 0o176446, STHDG: 0o176450, STCOIN: 0o176452,
   INV: 0o176460,
+  DCKCSR: 0o176500, DCKERR: 0o176502, DCKCNT: 0o176504,
   // DEC devices
   LKS: 0o177546,
   RCSR: 0o177560, RBUF: 0o177562, XCSR: 0o177564, XBUF: 0o177566,
@@ -32,7 +33,7 @@ export const REG = {
  * vector (030) is set to the BIOS on every load.
  */
 export const BIOS_CALL = {
-  MOVE: 0, BACK: 1, LEFT: 2, RIGHT: 3, FIRE: 4, SCAN: 5, GRAB: 6, DROP: 7, PRINT: 0o10, AIM: 0o11,
+  MOVE: 0, BACK: 1, LEFT: 2, RIGHT: 3, FIRE: 4, SCAN: 5, GRAB: 6, DROP: 7, PRINT: 0o10, AIM: 0o11, CHARGE: 0o12,
 } as const;
 
 /** Interrupt vectors (bus level {@link DEVICE_LEVEL}). */
@@ -41,6 +42,7 @@ export const VECTOR = {
   LASER: 0o304,
   SCANNER: 0o310,
   GRABBER: 0o314,
+  DOCK: 0o320,
   CLOCK: 0o100,
   CONSOLE_RX: 0o060,
   CONSOLE_TX: 0o064,
@@ -71,6 +73,7 @@ export const FN = {
   SCAN_NO_WALLS: 0o2,
   GRAB: 0o0,
   DROP: 0o2,
+  CHARGE: 0o0,
 } as const;
 
 /** Error register codes. */
@@ -84,9 +87,9 @@ export const ERR = {
   BLOCKED: 3,
   /** Scanner buffer not in RAM, odd, or shorter than 2 bytes. */
   ADDRESS: 4,
-  /** Nothing to take. */
+  /** Nothing to take (grabber), no charger in front (dock). */
   NOTHING: 5,
-  /** Inventory full. */
+  /** Inventory full (grabber), energy full (dock). */
   FULL: 6,
   /** Bad argument: wheel count 0, drop slot out of range or empty, laser target out of the arc or range. */
   ARGUMENT: 7,
@@ -121,6 +124,8 @@ export const MAP_SIZE = 15;
 
 export const ENERGY_MAX = 10000;
 export const ROBOT_HP = 100;
+/** Energy the dock takes from a charger per tick (DESIGN.md §5): 250 ticks from empty to full. */
+export const CHARGE_RATE = 0o50;
 
 /**
  * CPU drain, in 1/64 energy units: per instruction executed, and per tick whatever the

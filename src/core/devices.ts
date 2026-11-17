@@ -37,7 +37,7 @@ export abstract class CsrDevice implements Device {
   protected cpu!: Cpu;
   protected csr: number = CSR.READY;
   protected err = 0;
-  /** Function of the running action (bits 3–1, unshifted value 0–7). */
+  /** Function of the running action, as in the CSR (bits 3–1: {@link FN}). */
   protected fn = 0;
   /** Ticks until the current step completes; 0 = idle. */
   protected busy = 0;
@@ -62,7 +62,7 @@ export abstract class CsrDevice implements Device {
     if (value & CSR.GO && this.ready) {
       this.csr &= ~(CSR.READY | CSR.ERROR);
       this.err = 0;
-      this.fn = (this.csr & CSR.FN) >> 1;
+      this.fn = this.csr & CSR.FN;
       this.settle(this.start(this.fn));
     } else if (!wasIE && this.csr & CSR.IE && this.ready) {
       this.cpu.interrupt(this.vector, DEVICE_LEVEL);
@@ -95,7 +95,7 @@ export abstract class CsrDevice implements Device {
     if (this.csr & CSR.IE) this.cpu.interrupt(this.vector, DEVICE_LEVEL);
   }
 
-  /** GO: start function `fn` (0–7). */
+  /** GO: start function `fn` (bits 3–1 of the CSR, as {@link FN} has them). */
   protected abstract start(fn: number): Outcome;
   /** The current step's time is up: apply its effect. */
   protected abstract complete(): Outcome;
@@ -115,27 +115,62 @@ export abstract class ActionDevice extends CsrDevice {
   }
 }
 
+/**
+ * An action device with one argument register at +4 (the wheels' count, the grabber's
+ * slot, the dock's count): read any time, written only while READY.
+ */
+export abstract class ArgDevice extends ActionDevice {
+  protected arg = 0;
+
+  protected readReg(offset: number): number { return offset === 4 ? this.arg : BUS_ERROR; }
+
+  protected writeReg(offset: number, value: number, byte: boolean): boolean {
+    if (offset >> 1 !== 2) return false;
+    if (this.ready) this.arg = put(this.arg, offset, value, byte);
+    return true;
+  }
+
+  reset(): void { super.reset(); this.arg = 0; }
+}
+
 /** A 16-bit register written by words or bytes. */
 function put(old: number, offset: number, value: number, byte: boolean): number {
   if (!byte) return value & 0xffff;
   return offset & 1 ? (old & 0xff) | (value << 8) : (old & 0xff00) | value;
 }
 
+/** The little-endian word at `offset` in `bytes`. */
+export function wordOf(bytes: Uint8Array, offset: number): number {
+  return bytes[offset] | (bytes[offset + 1] << 8);
+}
+
+/**
+ * What a wheels or motor function (forward, left, right, back: {@link FN}) does from
+ * `heading`: a turn gives the new heading, a move the direction of the step.
+ */
+export function drive(heading: number, fn: number): { turn: number } | { step: number } {
+  switch (fn) {
+    case FN.WHEELS_LEFT: return { turn: (heading + 3) & 3 };
+    case FN.WHEELS_RIGHT: return { turn: (heading + 1) & 3 };
+    case FN.WHEELS_BACK: return { step: (heading + 2) & 3 };
+    default: return { step: heading };
+  }
+}
+
 // ---------------------------------------------------------------- wheels
 
-/** Wheels: forward / back WHLCNT cells (counts down per cell), turn left / right. */
-export class Wheels extends ActionDevice {
+/** Wheels: forward / back WHLCNT cells (the argument; counts down per cell), turn left / right. */
+export class Wheels extends ArgDevice {
   readonly base = REG.WHLCSR;
   readonly vector = VECTOR.WHEELS;
-  count = 0;
 
   protected start(fn: number): Outcome {
-    switch (fn << 1) {
+    switch (fn) {
       case FN.WHEELS_LEFT:
       case FN.WHEELS_RIGHT: return this.charge(COST.TURN, { ticks: TICKS.TURN });
       case FN.WHEELS_FORWARD:
       case FN.WHEELS_BACK:
-        if (this.count === 0) return { error: ERR.ARGUMENT };
+        if (this.arg === 0) return { error: ERR.ARGUMENT };
         return this.charge(COST.MOVE, { ticks: TICKS.MOVE });
       default: return { error: ERR.FUNCTION };
     }
@@ -143,25 +178,12 @@ export class Wheels extends ActionDevice {
 
   protected complete(): Outcome {
     const r = this.robot;
-    switch (this.fn << 1) {
-      case FN.WHEELS_LEFT: r.heading = (r.heading + 3) & 3; return done;
-      case FN.WHEELS_RIGHT: r.heading = (r.heading + 1) & 3; return done;
-    }
-    const dir = this.fn << 1 === FN.WHEELS_BACK ? (r.heading + 2) & 3 : r.heading;
-    if (!r.world.moveRobot(r.x + DX[dir], r.y + DY[dir])) return { error: ERR.BLOCKED };
-    if (--this.count === 0) return done;
+    const d = drive(r.heading, this.fn);
+    if ('turn' in d) { r.heading = d.turn; return done; }
+    if (!r.world.moveRobot(r.x + DX[d.step], r.y + DY[d.step])) return { error: ERR.BLOCKED };
+    if (--this.arg === 0) return done;
     return this.charge(COST.MOVE, { ticks: TICKS.MOVE });
   }
-
-  protected readReg(offset: number): number { return offset === 4 ? this.count : BUS_ERROR; }
-
-  protected writeReg(offset: number, value: number, byte: boolean): boolean {
-    if (offset >> 1 !== 2) return false;
-    if (this.ready) this.count = put(this.count, offset, value, byte);
-    return true;
-  }
-
-  reset(): void { super.reset(); this.count = 0; }
 }
 
 // ---------------------------------------------------------------- laser
@@ -183,13 +205,13 @@ export class Laser extends ActionDevice {
 
   protected start(fn: number): Outcome {
     const h = this.robot.heading;
-    if (fn << 1 === FN.LASER_AIM) {
+    if (fn === FN.LASER_AIM) {
       const dx = (this.target << 24) >> 24, dy = (this.target << 16) >> 24;
       const ahead = dx * DX[h] + dy * DY[h];
       const side = Math.abs(dx * DY[h] - dy * DX[h]);
       if (ahead <= 0 || side > ahead || dx * dx + dy * dy > LASER_RANGE_SQ) return { error: ERR.ARGUMENT };
       this.path = line(dx, dy);
-    } else if (fn << 1 !== FN.LASER_FIRE) {
+    } else if (fn !== FN.LASER_FIRE) {
       return { error: ERR.FUNCTION };
     }
     return this.charge(COST.LASER, { ticks: TICKS.LASER });
@@ -197,7 +219,7 @@ export class Laser extends ActionDevice {
 
   protected complete(): Outcome {
     const { x, y, heading, world } = this.robot;
-    this.distance = this.fn << 1 === FN.LASER_FIRE
+    this.distance = this.fn === FN.LASER_FIRE
       ? beam(world, x, y, heading, LASER_RANGE, LASER_DAMAGE)
       : hit(world, x, y, this.path, LASER_DAMAGE);
     return done;
@@ -259,7 +281,7 @@ export class Scanner extends ActionDevice {
   private len = 0;
 
   protected start(fn: number): Outcome {
-    if (fn << 1 !== FN.SCAN_ALL && fn << 1 !== FN.SCAN_NO_WALLS) return { error: ERR.FUNCTION };
+    if (fn !== FN.SCAN_ALL && fn !== FN.SCAN_NO_WALLS) return { error: ERR.FUNCTION };
     if (this.buffer & 1 || this.length < 2 || this.buffer + this.length > MEMORY.RAM_END) return { error: ERR.ADDRESS };
     this.at = this.buffer;
     this.len = this.length;
@@ -267,7 +289,7 @@ export class Scanner extends ActionDevice {
   }
 
   protected complete(): Outcome {
-    const found = scan(this.robot, this.fn << 1 === FN.SCAN_NO_WALLS);
+    const found = scan(this.robot, this.fn === FN.SCAN_NO_WALLS);
     const ram = this.robot.machine.ram;
     const n = Math.min(found.length, Math.floor((this.len - 2) / 6));
     let a = this.at;
@@ -348,14 +370,13 @@ export function lineOfSight(grid: Grid, x0: number, y0: number, dx: number, dy: 
 
 // ---------------------------------------------------------------- grabber
 
-/** Grabber: take a collectible from the cell in front, or drop slot GRBSLT there. */
-export class Grabber extends ActionDevice {
+/** Grabber: take a collectible from the cell in front, or drop slot GRBSLT (the argument) there. */
+export class Grabber extends ArgDevice {
   readonly base = REG.GRBCSR;
   readonly vector = VECTOR.GRABBER;
-  slot = 0;
 
   protected start(fn: number): Outcome {
-    if (fn << 1 !== FN.GRAB && fn << 1 !== FN.DROP) return { error: ERR.FUNCTION };
+    if (fn !== FN.GRAB && fn !== FN.DROP) return { error: ERR.FUNCTION };
     return this.charge(COST.GRAB, { ticks: TICKS.GRAB });
   }
 
@@ -363,10 +384,10 @@ export class Grabber extends ActionDevice {
     const r = this.robot;
     const { grid } = r.world;
     const x = r.x + DX[r.heading], y = r.y + DY[r.heading];
-    if (this.fn << 1 === FN.DROP) {
-      if (this.slot >= INVENTORY_SLOTS || r.inventory[this.slot * 4] === 0) return { error: ERR.ARGUMENT };
+    if (this.fn === FN.DROP) {
+      if (this.arg >= INVENTORY_SLOTS || r.inventory[this.arg * 4] === 0) return { error: ERR.ARGUMENT };
       if (!grid.inBounds(x, y) || grid.typeAt('floor', x, y)) return { error: ERR.BLOCKED };
-      const i = this.slot * 4;
+      const i = this.arg * 4;
       const inv = r.inventory;
       grid.set('floor', x, y, { type: inv[i], hp: inv[i + 1], flags: inv[i + 2], loot: inv[i + 3] });
       inv.fill(0, i, i + 4);
@@ -383,34 +404,23 @@ export class Grabber extends ActionDevice {
       while (s < INVENTORY_SLOTS && r.inventory[s * 4]) s++;
       if (s === INVENTORY_SLOTS) return { error: ERR.FULL };
       r.inventory.set([item.type, item.hp, item.flags, item.loot], s * 4);
-      this.slot = s;
+      this.arg = s;
     }
     grid.clear(layer, x, y);
     return done;
   }
-
-  protected readReg(offset: number): number { return offset === 4 ? this.slot : BUS_ERROR; }
-
-  protected writeReg(offset: number, value: number, byte: boolean): boolean {
-    if (offset >> 1 !== 2) return false;
-    if (this.ready) this.slot = put(this.slot, offset, value, byte);
-    return true;
-  }
-
-  reset(): void { super.reset(); this.slot = 0; }
 }
 
 // ---------------------------------------------------------------- dock
 
 /**
  * Dock: charge from the charger in front, {@link CHARGE_RATE} energy a tick, DCKCNT energy
- * (0 = until full). DCKCNT counts down and keeps what was not taken. Each tick checks the
+ * (0 = until full; the argument). DCKCNT counts down and keeps what was not taken. Each tick checks the
  * charger is still in front (the robot may turn away, the charger may be destroyed).
  */
-export class Dock extends ActionDevice {
+export class Dock extends ArgDevice {
   readonly base = REG.DCKCSR;
   readonly vector = VECTOR.DOCK;
-  count = 0;
 
   /** Charging now (for the display). */
   get charging(): boolean { return this.busy > 0; }
@@ -421,7 +431,7 @@ export class Dock extends ActionDevice {
   }
 
   protected start(fn: number): Outcome {
-    if (fn << 1 !== FN.CHARGE) return { error: ERR.FUNCTION };
+    if (fn !== FN.CHARGE) return { error: ERR.FUNCTION };
     if (!this.facingCharger()) return { error: ERR.NOTHING };
     if (this.robot.energy >= ENERGY_MAX) return { error: ERR.FULL };
     return { ticks: 1 };
@@ -431,24 +441,14 @@ export class Dock extends ActionDevice {
     const r = this.robot;
     if (!this.facingCharger()) return { error: ERR.NOTHING };
     let gain = Math.min(CHARGE_RATE, ENERGY_MAX - r.energy);
-    if (this.count) gain = Math.min(gain, this.count);
+    if (this.arg) gain = Math.min(gain, this.arg);
     r.energy += gain;
-    if (this.count) {
-      this.count -= gain;
-      if (this.count === 0) return done;
+    if (this.arg) {
+      this.arg -= gain;
+      if (this.arg === 0) return done;
     }
     return r.energy >= ENERGY_MAX ? done : { ticks: 1 };
   }
-
-  protected readReg(offset: number): number { return offset === 4 ? this.count : BUS_ERROR; }
-
-  protected writeReg(offset: number, value: number, byte: boolean): boolean {
-    if (offset >> 1 !== 2) return false;
-    if (this.ready) this.count = put(this.count, offset, value, byte);
-    return true;
-  }
-
-  reset(): void { super.reset(); this.count = 0; }
 }
 
 // ---------------------------------------------------------------- status, inventory
@@ -481,10 +481,7 @@ export class Inventory implements Device {
   readonly size = INVENTORY_SLOTS * 4;
   constructor(private readonly robot: Robot) {}
 
-  read(offset: number): number {
-    const b = this.robot.inventory;
-    return b[offset] | (b[offset + 1] << 8);
-  }
+  read(offset: number): number { return wordOf(this.robot.inventory, offset); }
 
   write(): boolean { return true; }
 }

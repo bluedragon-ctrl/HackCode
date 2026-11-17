@@ -12,10 +12,10 @@
  * of jumping to address 0, so the host can say what happened (DESIGN.md §4 "Traps").
  */
 
-import { BUS_ERROR, DeviceMachine, DL11, KW11L, VEC, type AssembleResult, type Cpu, type Device } from '../blue11';
+import { BUS_ERROR, DeviceMachine, DL11, KW11L, VEC, type Cpu, type Device, type Program } from '../blue11';
 import { bios, biosEntry } from './bios';
 import { ENERGY_MAX, MEMORY, ROBOT_HP, TICK_CYCLES } from './constants';
-import { Dock, Grabber, Inventory, Laser, Scanner, Status, Wheels, type ActionDevice } from './devices';
+import { Dock, Grabber, Inventory, Laser, Scanner, Status, Wheels, wordOf, type ActionDevice } from './devices';
 import { FLAG, record, TYPE } from './objects';
 import type { World } from './world';
 
@@ -31,7 +31,7 @@ export class Rom implements Device {
   }
 
   read(offset: number): number {
-    return offset < this.size ? this.bytes[offset] | (this.bytes[offset + 1] << 8) : BUS_ERROR;
+    return offset < this.size ? wordOf(this.bytes, offset) : BUS_ERROR;
   }
 
   write(): boolean { return false; }
@@ -119,8 +119,7 @@ export class Robot {
 
   /** No handler at `vector`: its new-PC word is 0. */
   vectorEmpty(vector: number): boolean {
-    const ram = this.machine.ram;
-    return (ram[vector] | (ram[vector + 1] << 8)) === 0;
+    return wordOf(this.machine.ram, vector) === 0;
   }
 
   /** HP, from the robot's record on the grid. */
@@ -129,11 +128,11 @@ export class Robot {
   /**
    * Load a program (DESIGN.md §3 "Run"): clear the vectors (000–377), point the EMT vector
    * at the BIOS, copy the program into RAM (it may replace the vector), reset the registers
-   * and PSW and the devices (as `RESET`), PC = start, SP = origin. The rest of RAM, the
+   * and PSW and the devices (as `RESET`), then start it (PC = start, SP = origin). The rest of RAM, the
    * world and time persist: a handler left by an earlier program is never jumped to.
    * Returns an error message, or null.
    */
-  load(asm: Pick<AssembleResult, 'origin' | 'bytes' | 'start'> & { symbols?: ReadonlyMap<string, number> },
+  load(asm: Program & { symbols?: ReadonlyMap<string, number> },
     opts: LoadOptions = {}): string | null {
     if (asm.origin + asm.bytes.length > MEMORY.RAM_END) return 'program does not fit in RAM (000000–137777)';
     const m = this.machine;
@@ -145,8 +144,7 @@ export class Robot {
     m.ram.set(asm.bytes, asm.origin);
     m.cpu.reset();
     m.reset();
-    m.cpu.r[7] = asm.start;
-    m.cpu.r[6] = asm.origin >= 0o400 ? asm.origin & 0xfffe : 0o1000;
+    m.start(asm);
     this.symbols = asm.symbols ?? new Map();
     return null;
   }

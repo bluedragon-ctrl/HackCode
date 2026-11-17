@@ -3,7 +3,7 @@
  * PC-relative targets are shown as absolute addresses (or a name, if `nameOf` knows one).
  */
 
-import { decodeOp, octal } from './isa';
+import { branchOffset, decodeOp, octal, REGISTER_NAMES as REG } from './isa';
 
 export interface Disassembled {
   address: number;
@@ -17,8 +17,6 @@ export interface DisassembleOptions {
   /** A name for an address (labels, device registers), shown instead of the number. */
   nameOf?: (addr: number) => string | undefined;
 }
-
-const REG = ['R0', 'R1', 'R2', 'R3', 'R4', 'R5', 'SP', 'PC'];
 
 /**
  * Disassemble the instruction at `address`. `read` returns the word at an even address
@@ -67,16 +65,10 @@ export function disassemble(read: (addr: number) => number, address: number, opt
     switch (op.format) {
       case 'double': { const s = operand((w >> 6) & 0o77); text = `${op.name} ${s}, ${operand(w & 0o77)}`; break; }
       case 'single': text = `${op.name} ${operand(w & 0o77)}`; break;
-      case 'jsr': text = `JSR ${REG[(w >> 6) & 7]}, ${operand(w & 0o77)}`; break;
-      case 'xor': text = `XOR ${REG[(w >> 6) & 7]}, ${operand(w & 0o77)}`; break;
+      case 'jsr': case 'xor': text = `${op.name} ${REG[(w >> 6) & 7]}, ${operand(w & 0o77)}`; break;
       case 'regsrc': text = `${op.name} ${operand(w & 0o77)}, ${REG[(w >> 6) & 7]}`; break;
       case 'rts': text = `RTS ${REG[w & 7]}`; break;
-      case 'branch': {
-        const off = w & 0o377;
-        const target = pc + 2 * (off & 0o200 ? off - 0o400 : off);
-        text = `${op.name} ${name(target)}`;
-        break;
-      }
+      case 'branch': text = `${op.name} ${name(pc + 2 * branchOffset(w))}`; break;
       case 'sob': text = `SOB ${REG[(w >> 6) & 7]}, ${name(pc - 2 * (w & 0o77))}`; break;
       case 'trap': text = (w & 0o377) ? `${op.name} ${octal(w & 0o377, 3)}` : op.name; break;
       default: text = op.name;
@@ -85,12 +77,10 @@ export function disassemble(read: (addr: number) => number, address: number, opt
   return { address: address & 0xffff, words, text };
 }
 
-/** `CLC!CLV`-style names for combined flag operations (000241–000277). */
+/** `CLC!CLV`-style names for combined flag operations (000241–000277), from the one-flag ones in the table. */
 function ccCombination(w: number): string | null {
   if (w < 0o000240 || w >= 0o000300) return null;
-  const set = (w & 0o20) !== 0;
   const parts: string[] = [];
-  const names = set ? ['SEC', 'SEV', 'SEZ', 'SEN'] : ['CLC', 'CLV', 'CLZ', 'CLN'];
-  for (let i = 0; i < 4; i++) if (w & (1 << i)) parts.push(names[i]);
+  for (let i = 0; i < 4; i++) if (w & (1 << i)) parts.push(decodeOp((w & 0o000260) | (1 << i))!.name);
   return parts.length ? parts.join('!') : 'NOP';
 }

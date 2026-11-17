@@ -10,10 +10,12 @@ import { EditorState } from '@codemirror/state';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { octal } from '../blue11';
 import { blue11Asm, blue11Highlight } from '../blue11/codemirror';
-import { bios, BIOS_SOURCE, ENERGY_MAX, MEMORY } from '../core';
+import { BIOS_SOURCE, ENERGY_MAX } from '../core';
 import { CanvasRenderer, type Renderer } from '../render';
-import { addressNamer, disassemblyAround, lineHeat, memoryRows, parseAddress } from './debug';
-import { breakpointLines, debugExtensions, setErrors, setHeat, setPcLine, toggleBreakpointAtCursor } from './editor';
+import { DebuggerPanel } from './debugger-panel';
+import { debugExtensions, setErrors, setHeat, setPcLine, toggleBreakpointAtCursor } from './editor';
+import { Expedition, EXPEDITION_STARTER, SEED_MAX } from './expedition';
+import { ExpeditionBar } from './expedition-bar';
 import { HELP, wordAt } from './help';
 import { helpTooltip } from './help/tooltip';
 import { HelpView } from './help/view';
@@ -21,19 +23,17 @@ import { plain } from './help/model';
 import { LESSONS } from './lessons/lessons';
 import { codeId, type Lesson } from './lessons/model';
 import { Progress, type KeyValue } from './lessons/progress';
-import { LessonView } from './lessons/view';
+import { confirmReplace, LessonView } from './lessons/view';
+import { registerText, robotText } from './panels';
 import { BIOS_PROGRAM, TEST_MAP, TEST_PROGRAM } from './samples';
 import { Session, type StepResult } from './session';
 import { describeTrap } from './traps';
-import { Expedition, EXPEDITION_STARTER, SEED_MAX } from './expedition';
 
 /** The id under which the sandbox (the test map, no lesson) keeps its program. */
 const SANDBOX = 'sandbox';
 /** The id of the expedition (its program, and the picker's entry). */
 const EXPEDITION = 'expedition';
 
-const HEADINGS = ['N', 'E', 'S', 'W'];
-const REGS = ['R0', 'R1', 'R2', 'R3', 'R4', 'R5', 'SP', 'PC'];
 /** At most this many ticks per animation frame, so a slow machine still answers. */
 const MAX_TICKS_PER_FRAME = 50;
 
@@ -70,8 +70,6 @@ export function startPage(): void {
   let lastTime = 0;
   let owed = 0; // ticks owed to the speed setting, fractional
   let resumeNext = false; // the next batch passes a breakpoint at the PC (Continue)
-  /** Breakpoints set in the disassembly at addresses with no source line (the BIOS). */
-  const romBreakpoints = new Set<number>();
 
   const help = new HelpView($<HTMLDialogElement>('help'), HELP);
   /** F1 in the editor: help on the word under the cursor. */
@@ -98,13 +96,17 @@ export function startPage(): void {
           if (u.docChanged) { refreshButtons(); progress.saveCode(codeKey, source()); }
           // a breakpoint toggled: show it in the disassembly (our own effects are skipped)
           if (!running && u.transactions.some((t) => t.effects.some((e) => !e.is(setHeat) && !e.is(setPcLine) && !e.is(setErrors)))) {
-            queueMicrotask(showDebugger);
+            queueMicrotask(() => debug.show());
           }
         }),
       ],
     }),
   });
   const source = () => editor.state.doc.toString();
+  const debug = new DebuggerPanel(
+    { disasm: $('disasm'), memAddr: $<HTMLInputElement>('mem-addr'), memory: $('memory') },
+    { get session() { return session; }, editor, get running() { return running; } },
+  );
 
   function showStatus(text: string, kind: 'info' | 'error' | 'win' = 'info'): void {
     status.textContent = text;
@@ -123,96 +125,16 @@ export function startPage(): void {
   function show(): void {
     const w = session.world;
     const r = w.robot;
-    const cpu = r.cpu;
     renderer.draw(w);
     const bar = $<HTMLDivElement>('energy-bar');
     bar.style.width = `${(100 * r.energy) / ENERGY_MAX}%`;
     bar.classList.toggle('charging', r.dock.charging);
-    $<HTMLPreElement>('robot').textContent = [
-      `HP     ${r.hp.toString().padStart(6)}.`,
-      `Energy ${r.energy.toString().padStart(6)}.${r.dock.charging ? ' charging' : ''}`,
-      `Coins  ${octal(r.coins)}`,
-      `X Y    ${octal(r.x, 3)} ${octal(r.y, 3)}`,
-      `Facing ${HEADINGS[r.heading]}`,
-      `Tick   ${octal(w.tick)}`,
-    ].join('\n');
-    const psw = cpu.psw;
-    const flags = ['N', 'Z', 'V', 'C'].map((f, i) => (psw & (8 >> i) ? f : '-')).join('');
-    $<HTMLPreElement>('regs').textContent = REGS.map((n, i) => `${n.padEnd(3)} ${octal(cpu.r[i])}`).join('\n')
-      + `\nPSW ${octal(psw)} ${flags}` + (cpu.halted ? '\nHALTED' : cpu.waiting ? '\nWAIT' : '');
+    $<HTMLPreElement>('robot').textContent = robotText(w);
+    $<HTMLPreElement>('regs').textContent = registerText(r.cpu);
     const out = $<HTMLPreElement>('output');
     if (out.textContent !== r.console.output) out.textContent = r.console.output;
-    showDebugger();
+    debug.show();
     refreshButtons();
-  }
-
-  /** The breakpoints: the editor's lines (while it holds the loaded code) and the ROM ones. */
-  function syncBreakpoints(): void {
-    const set = new Set(romBreakpoints);
-    if (session.canContinue(source())) {
-      for (const l of breakpointLines(editor.state)) {
-        const a = session.addressOfLine(l);
-        if (a !== null) set.add(a);
-      }
-    }
-    session.breakpoints = set;
-  }
-
-  const disasm = $<HTMLDivElement>('disasm');
-  const memAddr = $<HTMLInputElement>('mem-addr');
-  const memory = $<HTMLPreElement>('memory');
-
-  function showDebugger(): void {
-    syncBreakpoints();
-    const cpu = session.world.robot.cpu;
-    const pc = cpu.r[7];
-    const prog = session.program;
-    const current = !!prog && session.canContinue(source());
-    editor.dispatch({ effects: [
-      setHeat.of(current ? lineHeat(session.heat, prog.lineAt) : new Map()),
-      setPcLine.of(current && !running ? prog.lineAt.get(pc) ?? null : null),
-    ] });
-
-    const read = (a: number) => session.world.robot.machine.read(a, false);
-    const nameOf = addressNamer(prog?.symbols, prog?.labels);
-    const inRom = pc >= MEMORY.ROM_BASE && pc < MEMORY.ROM_BASE + MEMORY.ROM_SIZE;
-    const starts = inRom ? [...bios().lineAt.keys()] : prog ? [...prog.lineAt.keys()] : [];
-    const rows = disassemblyAround(read, pc, starts, { before: 4, count: 14, nameOf });
-    const width = Math.max(0, ...rows.map((r) => (r.label ?? '').length));
-    disasm.replaceChildren(...rows.map((r) => {
-      const e = document.createElement('div');
-      const bp = session.breakpoints.has(r.address);
-      const n = session.heat[r.address >> 1];
-      e.className = 'row' + (r.address === pc ? ' pc' : '') + (bp ? ' bp' : '');
-      e.textContent = `${bp ? '●' : ' '}${r.address === pc ? '▶' : ' '}${octal(r.address)} `
-        + `${(r.label ? r.label + ':' : '').padEnd(width + 1)} ${r.text}`;
-      if (n) {
-        const h = document.createElement('span');
-        h.className = 'count';
-        h.textContent = octal(n, 1);
-        e.append(h);
-      }
-      e.title = `${r.words.map((w) => octal(w)).join(' ')}${n ? ` — run ${octal(n, 1)} times` : ''} — click: breakpoint`;
-      e.addEventListener('click', () => toggleAddress(r.address));
-      return e;
-    }));
-
-    const at = parseAddress(memAddr.value || 'SP', prog?.symbols ?? new Map(), cpu.r);
-    memAddr.classList.toggle('bad', at === null);
-    memory.textContent = at === null ? 'An octal address, a label, a device name or a register.'
-      : memoryRows(read, at, 8, 4).map((r) => `${octal(r.address)}  ${r.words.map((w) => octal(w)).join(' ')}`).join('\n');
-  }
-
-  /** A breakpoint from the disassembly: on its source line if it has one, else by address. */
-  function toggleAddress(addr: number): void {
-    const line = session.canContinue(source()) ? session.program?.lineAt.get(addr) : undefined;
-    if (line !== undefined) {
-      editor.dispatch({ selection: { anchor: editor.state.doc.line(line).from } });
-      toggleBreakpointAtCursor(editor);
-    } else {
-      if (!romBreakpoints.delete(addr)) romBreakpoints.add(addr);
-      showDebugger();
-    }
   }
 
   /** Report a stop; returns true if the program can go on by itself. */
@@ -296,7 +218,7 @@ export function startPage(): void {
     const n = Math.min(MAX_TICKS_PER_FRAME, Math.floor(owed));
     if (n > 0) {
       owed -= n;
-      syncBreakpoints();
+      debug.syncBreakpoints();
       const res = session.run(n, resumeNext);
       resumeNext = false;
       if (!report(res)) running = false;
@@ -329,8 +251,7 @@ export function startPage(): void {
   }
 
   function pause(): void {
-    running = false;
-    cancelAnimationFrame(frame);
+    stop();
     showStatus(`Paused at tick ${octal(session.world.tick)}.`);
     show();
   }
@@ -342,7 +263,7 @@ export function startPage(): void {
       if (loadEditor()) { showStatus('Loaded. Step to go on.'); show(); }
       return;
     }
-    syncBreakpoints();
+    debug.syncBreakpoints();
     const res = f();
     if (report(res) && res.stop === 'tick') showStatus(`Stepped: tick ${octal(session.world.tick)}, PC ${octal(session.world.robot.cpu.r[7])}.`);
     show();
@@ -360,7 +281,6 @@ export function startPage(): void {
     show();
   });
   window.addEventListener('resize', show);
-  memAddr.addEventListener('input', showDebugger);
 
   const examples: Record<string, string> = { bios: BIOS_PROGRAM, raw: TEST_PROGRAM };
   const example = $<HTMLSelectElement>('example');
@@ -408,7 +328,7 @@ export function startPage(): void {
     expedition = currentId === EXPEDITION ? Expedition.restore(progress.expedition) ?? newExpedition(randomSeed()) : null;
     session = lesson ? new Session(lesson.map, { ...lesson.mapOptions, goal: lesson.goal, rules: lesson.rules })
       : expedition ? expedition.session() : new Session(TEST_MAP);
-    romBreakpoints.clear();
+    debug.clear();
     setSource(progress.code(codeKey) ?? (lesson ? lesson.starter : expedition ? EXPEDITION_STARTER : BIOS_PROGRAM));
     lessonView.show(lesson, progress.done.has(currentId), lesson?.number === LESSONS.length - 1);
     showExpedition();
@@ -422,8 +342,14 @@ export function startPage(): void {
 
   // ---------------------------------------------------------------- expedition
 
-  const expBar = $<HTMLDivElement>('expedition-bar');
-  const seedInput = $<HTMLInputElement>('exp-seed');
+  const expBar = new ExpeditionBar($('expedition-bar'), {
+    start: (seed) => startExpedition(seed),
+    startRandom: () => startExpedition(randomSeed()),
+    starter: () => {
+      if (source() === EXPEDITION_STARTER || source().trim() === '' || confirmReplace('the starter program')) setSource(EXPEDITION_STARTER);
+    },
+    badSeed: (message) => showStatus(message, 'error'),
+  });
 
   /** A seed for a new expedition: the page's one use of chance, outside the simulation. */
   function randomSeed(): number { return Math.floor(Math.random() * (SEED_MAX + 1)); }
@@ -439,21 +365,8 @@ export function startPage(): void {
     return `Expedition, depth ${octal(expedition?.depth ?? 1, 1)}: reach the exit. The same program runs on every level. Run: Ctrl+Enter.`;
   }
 
-  /** The expedition bar: seed, depth, what the robot brought in, the deepest level reached. */
   function showExpedition(): void {
-    expBar.hidden = !expedition;
-    if (!expedition) return;
-    const e = expedition;
-    const c = e.carried;
-    expBar.querySelector('.exp-title')!.textContent = `Expedition — depth ${octal(e.depth, 1)}`;
-    expBar.querySelector('.exp-info')!.textContent = [
-      `seed ${octal(e.seed, 6)}`,
-      `brought in: HP ${c.hp ?? 'full'}${c.hp !== undefined ? '.' : ''}, energy ${c.energy ?? 'full'}${c.energy !== undefined ? '.' : ''}, coins ${octal(c.coins, 1)}`,
-      `ticks so far ${octal(e.ticks, 1)}`,
-      `deepest ${octal(progress.bestDepth || 1, 1)}`,
-    ].join(' · ');
-    if (document.activeElement !== seedInput) seedInput.value = octal(e.seed, 6);
-    seedInput.classList.remove('bad');
+    expBar.show(expedition, progress.bestDepth);
   }
 
   /** Start an expedition on `seed` from depth 1; the program in the editor stays. */
@@ -461,23 +374,11 @@ export function startPage(): void {
     stop();
     expedition = newExpedition(seed);
     session = expedition.session();
-    romBreakpoints.clear();
+    debug.clear();
     showExpedition();
     showStatus(`New expedition on seed ${octal(seed, 6)}. ` + expeditionStatus());
     show();
   }
-
-  $('exp-start').addEventListener('click', () => {
-    const v = seedInput.value.trim();
-    if (!/^[0-7]{1,6}$/.test(v)) { seedInput.classList.add('bad'); showStatus('A seed is up to six octal digits (0–7).', 'error'); return; }
-    startExpedition(parseInt(v, 8));
-  });
-  seedInput.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') $('exp-start').click(); });
-  $('exp-new').addEventListener('click', () => startExpedition(randomSeed()));
-  $('exp-starter').addEventListener('click', () => {
-    if (source() === EXPEDITION_STARTER || source().trim() === ''
-      || confirm('Replace your program with the starter program? Your program is not kept.')) setSource(EXPEDITION_STARTER);
-  });
 
   const dialog = $<HTMLDialogElement>('bios');
   $<HTMLPreElement>('bios-source').textContent = BIOS_SOURCE;

@@ -4,13 +4,14 @@
  * are at most 6 characters (the assembler's `names: 'dec'`). DESIGN.md §5 lists them.
  */
 
+import { PSW_ADDRESS } from '../blue11';
 import { BIOS_CALL, CSR, ERR, FN, HEADING, REG, VECTOR } from './constants';
 import { FLAG, TYPE } from './objects';
 
 export const SYMBOLS: Readonly<Record<string, number>> = Object.freeze({
   // Registers: WHLCSR … INV, LKS, RCSR … XBUF
   ...REG,
-  PSW: 0o177776,
+  PSW: PSW_ADDRESS,
 
   // BIOS calls: EMT MOVE, EMT LEFT, …
   ...BIOS_CALL,

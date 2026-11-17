@@ -10,7 +10,7 @@
  * Errors are returned, never thrown.
  */
 
-import { BY_NAME, octal, type OpInfo } from './isa';
+import { BY_NAME, isFlagOp, octal, REGISTERS, type OpInfo } from './isa';
 
 export type NameStyle = 'dec' | 'long';
 
@@ -72,7 +72,9 @@ export interface AssembleResult {
   warnings: AsmError[];
 }
 
-const REGISTERS: Record<string, number> = { R0: 0, R1: 1, R2: 2, R3: 3, R4: 4, R5: 5, R6: 6, R7: 7, SP: 6, PC: 7 };
+/** What a machine needs to run an assembly: its bytes, where they go, where to start. */
+export type Program = Pick<AssembleResult, 'origin' | 'bytes' | 'start'>;
+
 const IGNORED = new Set(['.TITLE', '.SBTTL', '.IDENT', '.ENABL', '.DSABL', '.LIST', '.NLIST', '.PAGE']);
 
 class AsmFail {
@@ -155,7 +157,8 @@ class Assembler {
     for (const [a, b] of this.mem) bytes[a - lo] = b;
     const lineAt = new Map<number, number>();
     for (const l of this.lines) if (l.code) lineAt.set(l.address, l.line);
-    const errors = this.errors.sort((a, b) => a.line - b.line || a.column - b.column);
+    const byPlace = (a: AsmError, b: AsmError): number => a.line - b.line || a.column - b.column;
+    const errors = this.errors.sort(byPlace);
     const listingRows = this.listing();
     return {
       ok: errors.length === 0,
@@ -169,7 +172,7 @@ class Assembler {
       lineAt,
       listing: listingRows.map((r) => r.text).join('\n'),
       listingRows,
-      warnings: this.warnings.sort((a, b) => a.line - b.line || a.column - b.column),
+      warnings: this.warnings.sort(byPlace),
     };
   }
 
@@ -210,7 +213,8 @@ class Assembler {
       // Combined flag operations, as the disassembler writes them: CLC!CLV, SEN!SEZ.
       const cc = /^([A-Za-z]+(?:\s*!\s*[A-Za-z]+)+)\s*(.*)$/.exec(rest);
       // Only when it starts with a flag operation: `FLAGS!MASK` is an implicit .WORD.
-      if (cc && isFlagOp(cc[1].split('!')[0].trim())) {
+      const firstOp = cc ? BY_NAME.get(cc[1].split('!')[0].trim().toUpperCase()) : undefined;
+      if (cc && firstOp && isFlagOp(firstOp)) {
         this.instruction(this.flagCombination(cc[1], pos), cc[2], pos + rest.length - cc[2].length);
         return true;
       }
@@ -264,8 +268,10 @@ class Assembler {
     if (code && this.firstCode === null) this.firstCode = address;
   }
 
-  private checkName(name: string, column: number): string {
+  /** A name to define, upper case. `define`: it may not be a register's. */
+  private checkName(name: string, column: number, define = false): string {
     const up = name.toUpperCase();
+    if (define && up in REGISTERS) throw new AsmFail(`${name} is a register`, column);
     if (/^\d/.test(up)) throw new AsmFail(`a name can't start with a digit: ${name}`, column);
     if (this.style === 'dec') {
       if (up.includes('_')) throw new AsmFail(`"_" is not allowed in names: ${name}`, column);
@@ -279,8 +285,7 @@ class Assembler {
     if (/^\d+\$$/.test(name)) {
       key = `${this.scope}:${name}`;
     } else {
-      key = this.checkName(name, column);
-      if (key in REGISTERS) throw new AsmFail(`${name} is a register`, column);
+      key = this.checkName(name, column, true);
       this.scope++;
       this.labels.add(key);
     }
@@ -308,8 +313,7 @@ class Assembler {
       this.lc = v.value & 0xffff;
       return;
     }
-    const key = this.checkName(name, column);
-    if (key in REGISTERS) throw new AsmFail(`${name} is a register`, column);
+    const key = this.checkName(name, column, true);
     const t = exprText.trim();
     if (t.startsWith('%')) {
       const v = this.expr(t.slice(1), exprCol + 1);
@@ -320,7 +324,7 @@ class Assembler {
     if (this.labels.has(key)) throw new AsmFail(`${name} is a label`, column);
     const v = this.expr(exprText, exprCol);
     if (!v.undef || this.pass === 1) this.symbols.set(key, v.value & 0xffff);
-    if (!v.undef && (v.value < -0x8000 || v.value > 0xffff)) this.warn(`${v.value < 0 ? "-" : ""}${Math.abs(v.value).toString(8)} doesn't fit 16 bits: ${key} = ${octal(v.value & 0xffff)}`, exprCol);
+    if (!v.undef && !fits16(v.value)) this.warn(`${v.value < 0 ? "-" : ""}${Math.abs(v.value).toString(8)} doesn't fit 16 bits: ${key} = ${octal(v.value & 0xffff)}`, exprCol);
     if (BY_NAME.has(key)) this.warn(`${key} is also an instruction; as a value it now means this symbol`, column);
   }
 
@@ -331,9 +335,8 @@ class Assembler {
     switch (name) {
       case '.WORD': {
         if (here & 1) throw new AsmFail('.WORD at an odd address (add .EVEN before it)', nameCol);
-        const parts = args.trim() === '' ? [{ text: '0', column: col }] : splitArgs(args, col);
         const bytes: number[] = [];
-        for (const p of parts) {
+        for (const p of dataArgs(args, col)) {
           const v = this.word(p.text, p.column);
           bytes.push(v & 0xff, v >> 8);
         }
@@ -341,9 +344,8 @@ class Assembler {
         return true;
       }
       case '.BYTE': {
-        const parts = args.trim() === '' ? [{ text: '0', column: col }] : splitArgs(args, col);
         const bytes: number[] = [];
-        for (const p of parts) {
+        for (const p of dataArgs(args, col)) {
           const v = this.expr(p.text, p.column);
           if (!v.undef && (v.value < -128 || v.value > 255)) throw new AsmFail(`${v.value} doesn't fit in a byte`, p.column);
           bytes.push(v.value & 0xff);
@@ -430,7 +432,7 @@ class Assembler {
     let set: boolean | null = null;
     for (const part of text.split('!').map((p) => p.trim().toUpperCase())) {
       const op = BY_NAME.get(part);
-      if (!op || op.format !== 'none' || op.opcode <= 0o000240 || op.opcode >= 0o000300 || op.opcode === 0o000260) {
+      if (!op || !isFlagOp(op)) {
         throw new AsmFail(`only flag operations (CLC, SEV, …) combine with !, not ${part}`, col);
       }
       const s = (op.opcode & 0o20) !== 0;
@@ -528,11 +530,7 @@ class Assembler {
     // Extra words, in operand order.
     for (const x of extras) {
       const addr = (here + 2 * words.length) & 0xffff;
-      const v = this.expr(x.expr, x.column);
-      let value = v.value;
-      if (x.relative) value = value - (addr + 2);
-      if (!v.undef && !x.relative && (v.value < -0x8000 || v.value > 0xffff)) throw new AsmFail(`${v.value} doesn't fit 16 bits`, x.column);
-      words.push(value & 0xffff);
+      words.push(x.relative ? (this.expr(x.expr, x.column).value - (addr + 2)) & 0xffff : this.word(x.expr, x.column));
     }
     const bytes: number[] = [];
     for (const w of words) bytes.push(w & 0xff, (w >> 8) & 0xff);
@@ -583,7 +581,7 @@ class Assembler {
 
   private word(text: string, column: number): number {
     const v = this.expr(text, column);
-    if (!v.undef && (v.value < -0x8000 || v.value > 0xffff)) throw new AsmFail(`${v.value} doesn't fit 16 bits`, column);
+    if (!v.undef && !fits16(v.value)) throw new AsmFail(`${v.value} doesn't fit 16 bits`, column);
     return v.value & 0xffff;
   }
 
@@ -625,19 +623,13 @@ class Assembler {
         out.push({ line: l.line, text: `${' '.repeat(30)}${src}` });
         continue;
       }
+      // Six bytes a row: as three words, or (text, odd sizes) as bytes.
+      const asWords = l.code || (l.address % 2 === 0 && l.bytes.length % 2 === 0 && !isText(stripComment(src)));
       const chunks: string[] = [];
-      if (l.code || (l.address % 2 === 0 && l.bytes.length % 2 === 0 && !isText(stripComment(src)))) {
-        // Words, three per row.
-        for (let i = 0; i < l.bytes.length; i += 6) {
-          const ws: string[] = [];
-          for (let k = i; k < Math.min(i + 6, l.bytes.length); k += 2) ws.push(octal(l.bytes[k] | (l.bytes[k + 1] << 8)));
-          chunks.push(`${octal((l.address + i) & 0xffff)}  ${ws.join(' ').padEnd(22)}`);
-        }
-      } else {
-        for (let i = 0; i < l.bytes.length; i += 6) {
-          const bs = l.bytes.slice(i, i + 6).map((b) => octal(b, 3));
-          chunks.push(`${octal((l.address + i) & 0xffff)}  ${bs.join(' ').padEnd(22)}`);
-        }
+      for (let i = 0; i < l.bytes.length; i += 6) {
+        const row = l.bytes.slice(i, i + 6);
+        const cells = asWords ? row.filter((_, k) => k % 2 === 0).map((b, k) => octal(b | (row[2 * k + 1] << 8))) : row.map((b) => octal(b, 3));
+        chunks.push(`${octal((l.address + i) & 0xffff)}  ${cells.join(' ').padEnd(22)}`);
       }
       const isBlk = /\.BLK[WB]/i.test(src);
       out.push({ line: l.line, text: chunks[0] + src });
@@ -647,10 +639,14 @@ class Assembler {
   }
 }
 
-/** CLC, SEV, CCC, …: the flag operations that combine with `!`. */
-function isFlagOp(name: string): boolean {
-  const op = BY_NAME.get(name.toUpperCase());
-  return !!op && op.format === 'none' && op.opcode > 0o000240 && op.opcode < 0o000300;
+/** Fits a 16-bit word, as unsigned or signed. */
+function fits16(v: number): boolean {
+  return v >= -0x8000 && v <= 0xffff;
+}
+
+/** The arguments of .WORD / .BYTE; none means one 0. */
+function dataArgs(args: string, column: number): Array<{ text: string; column: number }> {
+  return args.trim() === '' ? [{ text: '0', column }] : splitArgs(args, column);
 }
 
 function isText(src: string): boolean {
@@ -659,11 +655,20 @@ function isText(src: string): boolean {
 
 /** Remove a `;` comment, leaving `;` inside .ASCII text and character literals alone. */
 function stripComment(line: string): string {
+  const at = commentStart(line);
+  return (at < 0 ? line : line.slice(0, at)).trimEnd();
+}
+
+/**
+ * Where the line's `;` comment starts, or −1 if it has none. A `;` in a character
+ * literal (`';`, `"x;`) or in `.ASCII` / `.ASCIZ` text is not one.
+ */
+export function commentStart(line: string): number {
   for (let i = 0; i < line.length; i++) {
     const ch = line[i];
     if (ch === "'") { i++; continue; }
     if (ch === '"') { i += 2; continue; }
-    if (ch === ';') return line.slice(0, i).trimEnd();
+    if (ch === ';') return i;
     const m = ch === '.' ? /^\.ASCI[IZ](?![A-Z0-9.$])/i.exec(line.slice(i)) : null;
     if (!m) continue;
     // Skip over the delimited text after .ASCII / .ASCIZ (outside a comment only).
@@ -674,12 +679,12 @@ function stripComment(line: string): string {
       if (c === ';') break;
       const close = c === '<' ? '>' : c;
       const end = line.indexOf(close, i + 1);
-      if (end < 0) return line.trimEnd();
+      if (end < 0) return -1;
       i = end + 1;
     }
     i--; // the loop's i++ lands on the ';' or the end
   }
-  return line.trimEnd();
+  return -1;
 }
 
 /** Split at top-level commas (not inside `< >`, or after a quote character). */

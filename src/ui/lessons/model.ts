@@ -4,9 +4,9 @@
  * lesson is tested: its solution wins, and the mistakes it teaches about do not.
  */
 
-import { octal, type AssembleResult } from '../../blue11';
+import { commentStart, octal, type AssembleResult } from '../../blue11';
 import type { MapOptions, World } from '../../core';
-import { inComment, type Block } from '../help/model';
+import type { Block } from '../help/model';
 
 /** What wins a map, checked after every tick; the plain goal is the exit. */
 export interface Goal {
@@ -53,24 +53,27 @@ export interface Lesson {
 
 export const EXIT_GOAL: Goal = { text: 'Reach the **exit**.', won: (w) => w.atExit };
 
+/** The exit, reached with `enough(w)` true; reached without it, the run fails with `why(w)`. */
+function exitWith(text: string, enough: (w: World) => boolean, why: (w: World) => string): Goal {
+  return {
+    text,
+    won: (w) => w.atExit && enough(w),
+    failed: (w) => (w.atExit && !enough(w) ? why(w) : null),
+  };
+}
+
 /** The exit, with at least `coins` coins collected. */
 export function exitWithCoins(coins: number): Goal {
-  return {
-    text: `Collect all **${octal(coins, 1)}** coins (octal), then reach the **exit**.`,
-    won: (w) => w.atExit && w.robot.coins >= coins,
-    failed: (w) => (w.atExit && w.robot.coins < coins
-      ? `Exit reached with ${octal(w.robot.coins, 1)} of ${octal(coins, 1)} coins.` : null),
-  };
+  return exitWith(`Collect all **${octal(coins, 1)}** coins (octal), then reach the **exit**.`,
+    (w) => w.robot.coins >= coins,
+    (w) => `Exit reached with ${octal(w.robot.coins, 1)} of ${octal(coins, 1)} coins.`);
 }
 
 /** The exit, with at least `energy` energy left. */
 export function exitWithEnergy(energy: number): Goal {
-  return {
-    text: `Reach the **exit** with at least **${energy}.** energy left.`,
-    won: (w) => w.atExit && w.robot.energy >= energy,
-    failed: (w) => (w.atExit && w.robot.energy < energy
-      ? `Exit reached with ${w.robot.energy}. energy: the goal is at least ${energy}.` : null),
-  };
+  return exitWith(`Reach the **exit** with at least **${energy}.** energy left.`,
+    (w) => w.robot.energy >= energy,
+    (w) => `Exit reached with ${w.robot.energy}. energy: the goal is at least ${energy}.`);
 }
 
 /** The key the lesson's program is saved under: its id, plus the revision from 2 on. */
@@ -82,9 +85,8 @@ export function codeId(lesson: Pick<Lesson, 'id' | 'revision'>): string {
 export function mnemonics(source: string): Set<string> {
   const out = new Set<string>();
   for (const raw of source.split('\n')) {
-    let end = raw.length;
-    for (let i = 0; i < raw.length; i++) if (inComment(raw, i + 1)) { end = i; break; }
-    let text = raw.slice(0, end).trim();
+    const end = commentStart(raw);
+    let text = (end < 0 ? raw : raw.slice(0, end)).trim();
     for (let m; (m = /^[A-Za-z0-9.$]+:\s*/.exec(text)); ) text = text.slice(m[0].length);
     const word = /^[A-Za-z.]+/.exec(text)?.[0];
     if (word && !text.slice(word.length).trimStart().startsWith('=')) out.add(word.toUpperCase());

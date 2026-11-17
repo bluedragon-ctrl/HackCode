@@ -16,9 +16,10 @@
  * blocked by the robot bites it: the robot takes the kind's contact damage.
  */
 
-import { assemble, BUS_ERROR, DeviceMachine, type AssembleResult, type Device } from '../blue11';
+import { BUS_ERROR, DeviceMachine, type AssembleResult, type Device, type Program } from '../blue11';
+import { assembleBuiltIn } from './builtin';
 import { DX, DY, ERR, FN, HEADING, REG, SCAN_RANGE_SQ, TICK_CYCLES, VECTOR } from './constants';
-import { beam, CsrDevice, done, lineOfSight, type Outcome } from './devices';
+import { beam, CsrDevice, done, drive, lineOfSight, type Outcome } from './devices';
 import { FLAG, LOOT, loot, record, TYPE, type ObjectRecord } from './objects';
 import { Rng } from './rng';
 import { SYMBOLS } from './symbols';
@@ -35,8 +36,8 @@ export const MONSTER_REG = {
   SEE: 0o176450, RBTDX: 0o176452, RBTDY: 0o176454, AHEAD: 0o176456, RANDOM: 0o176460,
 } as const;
 
-/** Motor functions, as written to MOTCSR (bits 3–1). Forward and back go one cell. */
-export const MOTOR_FN = { FORWARD: 0o0, LEFT: 0o2, RIGHT: 0o4, BACK: 0o6 } as const;
+/** Motor functions, as written to MOTCSR (bits 3–1): the wheels' ones, but forward and back go one cell. */
+export const MOTOR_FN = { FORWARD: FN.WHEELS_FORWARD, LEFT: FN.WHEELS_LEFT, RIGHT: FN.WHEELS_RIGHT, BACK: FN.WHEELS_BACK } as const;
 
 export const MOTOR_VECTOR = 0o300;
 
@@ -261,8 +262,7 @@ const scripts = new Map<MonsterKind, AssembleResult>();
 export function monsterScript(k: MonsterKind): AssembleResult {
   let a = scripts.get(k);
   if (!a) {
-    a = assemble(k.source, { symbols: MONSTER_SYMBOLS });
-    if (!a.ok) throw new Error(`${k.name}: ${a.errors.map((e) => `${e.line}:${e.column} ${e.message}`).join('; ')}`);
+    a = assembleBuiltIn(k.name, k.source, { symbols: MONSTER_SYMBOLS });
     scripts.set(k, a);
   }
   return a;
@@ -279,7 +279,7 @@ export class Motor extends CsrDevice {
   constructor(private readonly m: Monster) { super(); }
 
   protected start(fn: number): Outcome {
-    switch (fn << 1) {
+    switch (fn) {
       case MOTOR_FN.FORWARD:
       case MOTOR_FN.BACK: return { ticks: this.m.kind.moveTicks };
       case MOTOR_FN.LEFT:
@@ -290,19 +290,15 @@ export class Motor extends CsrDevice {
 
   protected complete(): Outcome {
     const m = this.m;
-    switch (this.fn << 1) {
-      case MOTOR_FN.LEFT: m.heading = (m.heading + 3) & 3; return done;
-      case MOTOR_FN.RIGHT: m.heading = (m.heading + 1) & 3; return done;
-    }
-    const dir = this.fn << 1 === MOTOR_FN.BACK ? (m.heading + 2) & 3 : m.heading;
+    const d = drive(m.heading, this.fn);
+    if ('turn' in d) { m.heading = d.turn; return done; }
     const g = m.world.grid;
-    const x = m.x + DX[dir], y = m.y + DY[dir];
+    const x = m.x + DX[d.step], y = m.y + DY[d.step];
     if (!g.inBounds(x, y)) return { error: ERR.BLOCKED };
     const occ = g.typeAt('occupant', x, y);
     if (occ === TYPE.ROBOT) m.world.damage(x, y, m.kind.contact);
     if (occ) return { error: ERR.BLOCKED };
-    g.set('occupant', x, y, g.get('occupant', m.x, m.y));
-    g.clear('occupant', m.x, m.y);
+    g.move('occupant', m.x, m.y, x, y);
     m.x = x;
     m.y = y;
     return done;
@@ -324,7 +320,7 @@ export class MonsterLaser extends CsrDevice {
   constructor(private readonly m: Monster, private readonly spec: NonNullable<MonsterKind['laser']>) { super(); }
 
   protected start(fn: number): Outcome {
-    if (fn << 1 !== FN.LASER_FIRE) return { error: ERR.FUNCTION };
+    if (fn !== FN.LASER_FIRE) return { error: ERR.FUNCTION };
     this.reloading = false;
     return { ticks: this.spec.ticks };
   }
@@ -391,7 +387,7 @@ export class Monster implements Actor {
     public y: number,
     heading: number,
     readonly rng: Rng,
-    script: Pick<AssembleResult, 'origin' | 'bytes' | 'start'>,
+    script: Program,
   ) {
     this.heading = heading & 3;
     this.machine = new DeviceMachine({ memory: MONSTER_MEMORY, eis: false });
@@ -429,7 +425,7 @@ export class Monster implements Actor {
  * actor ID and its own random numbers, seeded from the world's.
  */
 export function addMonster(world: World, k: MonsterKind, x: number, y: number,
-  heading: number = HEADING.N, script: Pick<AssembleResult, 'origin' | 'bytes' | 'start'> = monsterScript(k)): Monster {
+  heading: number = HEADING.N, script: Program = monsterScript(k)): Monster {
   const g = world.grid;
   if (!g.inBounds(x, y) || g.typeAt('occupant', x, y)) throw new Error(`monster: ${x},${y} is not free`);
   g.set('occupant', x, y, k.record);

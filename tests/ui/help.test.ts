@@ -131,6 +131,11 @@ describe('help lookup', () => {
     expect(inComment(line, 3)).toBe(false);
     expect(inComment(line, 12)).toBe(false); // the ';' is a character constant
     expect(inComment(line, 20)).toBe(true);
+    // the assembler's rules: two-character constants and .ASCII text hold no comment
+    expect(inComment('  CMP R0, #";A ; x', 13)).toBe(false);
+    expect(inComment('  CMP R0, #";A ; x', 17)).toBe(true);
+    expect(inComment('  .ASCIZ /a;b/ ; x', 13)).toBe(false);
+    expect(inComment('  .ASCIZ /a;b/ ; x', 18)).toBe(true);
   });
 
   it('search puts the named entry first', () => {

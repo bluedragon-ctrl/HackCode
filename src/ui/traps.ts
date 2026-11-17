@@ -4,7 +4,7 @@
  */
 
 import { decodeOp, octal, type TrapInfo } from '../blue11';
-import { MEMORY, type Robot } from '../core';
+import { inRom, type Robot } from '../core';
 
 /** One line for the status bar: what happened and where. */
 export function describeTrap(t: TrapInfo, robot: Robot): string {
@@ -14,7 +14,7 @@ export function describeTrap(t: TrapInfo, robot: Robot): string {
     case 'odd-address':
       return `Odd address ${octal(a)} ${at}: a word needs an even address (a missing .EVEN?).`;
     case 'bus-error':
-      if (a >= MEMORY.ROM_BASE && a < MEMORY.ROM_BASE + MEMORY.ROM_SIZE) return `Bus error ${at}: the ROM at ${octal(a)} is read-only.`;
+      if (inRom(a)) return `Bus error ${at}: the ROM at ${octal(a)} is read-only.`;
       return `Bus error ${at}: nothing answers at ${octal(a)}.`;
     case 'stack-limit':
       return `Stack overflow ${at}: SP went below ${octal(a)}.`;

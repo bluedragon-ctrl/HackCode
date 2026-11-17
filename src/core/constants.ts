@@ -3,6 +3,8 @@
  * energy costs. DESIGN.md §3–§5 records the same table; change both together.
  */
 
+import { DEV } from '../blue11';
+
 /** Blue-11 cycles per game tick. The KW11-L line clock ticks once per tick of CPU time. */
 export const TICK_CYCLES = 200;
 
@@ -14,6 +16,11 @@ export const MEMORY = {
   ROM_SIZE: 0o20000,
 } as const;
 
+/** The address is in the ROM (the BIOS). */
+export function inRom(addr: number): boolean {
+  return addr >= MEMORY.ROM_BASE && addr < MEMORY.ROM_BASE + MEMORY.ROM_SIZE;
+}
+
 /** Robot device registers (1764xx). Every action device: CSR at +0, error register at +2. */
 export const REG = {
   WHLCSR: 0o176400, WHLERR: 0o176402, WHLCNT: 0o176404,
@@ -24,8 +31,8 @@ export const REG = {
   INV: 0o176460,
   DCKCSR: 0o176500, DCKERR: 0o176502, DCKCNT: 0o176504,
   // DEC devices
-  LKS: 0o177546,
-  RCSR: 0o177560, RBUF: 0o177562, XCSR: 0o177564, XBUF: 0o177566,
+  LKS: DEV.LKS,
+  RCSR: DEV.RCSR, RBUF: DEV.RBUF, XCSR: DEV.XCSR, XBUF: DEV.XBUF,
 } as const;
 
 /**
@@ -43,9 +50,9 @@ export const VECTOR = {
   SCANNER: 0o310,
   GRABBER: 0o314,
   DOCK: 0o320,
-  CLOCK: 0o100,
-  CONSOLE_RX: 0o060,
-  CONSOLE_TX: 0o064,
+  CLOCK: DEV.VEC_CLOCK,
+  CONSOLE_RX: DEV.VEC_RX,
+  CONSOLE_TX: DEV.VEC_TX,
 } as const;
 
 /** Bus request level of the robot devices (BR4). */

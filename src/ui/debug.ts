@@ -4,7 +4,7 @@
  * memory rows, the execution heat map per source line, and address parsing.
  */
 
-import { disassemble } from '../blue11';
+import { disassemble, PSW_ADDRESS, REGISTERS } from '../blue11';
 import { bios, BIOS_CALL, REG, SYMBOLS } from '../core';
 
 type Read = (addr: number) => number;
@@ -22,7 +22,7 @@ export function addressNamer(symbols: ReadonlyMap<string, number> = new Map(), l
     if (v !== undefined && /^[A-Z]/.test(l)) names.set(v, l);
   }
   for (const [k, v] of Object.entries(REG)) names.set(v, k);
-  names.set(SYMBOLS.PSW, 'PSW');
+  names.set(PSW_ADDRESS, 'PSW');
   return (addr) => names.get(addr & 0xffff);
 }
 
@@ -74,8 +74,6 @@ export function memoryRows(read: Read, start: number, rows = 8, perRow = 4): Arr
   return out;
 }
 
-const REGISTER_NAMES = ['R0', 'R1', 'R2', 'R3', 'R4', 'R5', 'SP', 'PC'];
-
 /**
  * An address typed by the player: octal, a label or symbol of the program, a predefined
  * name (WHLCSR), or a register (its value). Null if it is none of these.
@@ -86,8 +84,7 @@ export function parseAddress(text: string, symbols: ReadonlyMap<string, number>,
     const v = parseInt(t, 8);
     return v <= 0xffff ? v : null;
   }
-  const r = REGISTER_NAMES.indexOf(t === 'R6' ? 'SP' : t === 'R7' ? 'PC' : t);
-  if (r >= 0 && regs) return regs[r] & 0xffff;
+  if (t in REGISTERS && regs) return regs[REGISTERS[t]] & 0xffff;
   const v = symbols.get(t) ?? (SYMBOLS as Record<string, number>)[t] ?? bios().symbols.get(t);
   return v === undefined ? null : v & 0xffff;
 }

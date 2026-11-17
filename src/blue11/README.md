@@ -104,6 +104,11 @@ MSG:    .ASCIZ /HELLO/
 | `lineAt` | `Map<address, line>` for instructions: highlight the current line in a debugger |
 | `listing`, `listingRows` | listing in the traditional style as text, and row by row with source lines |
 
+`Program` is the part of a result a machine loads: `Pick<AssembleResult, 'origin' | 'bytes' | 'start'>`.
+`commentStart(line)` is where a source line's `;` comment begins, or −1, by the assembler's
+rules (a `;` in `';`, `"x;` or `.ASCII` text is not one): for editors and tools that need
+to agree with it.
+
 **Syntax.** `label: OP src, dst ; comment`. Names are case-insensitive. `NAME = expr`
 (a symbol), `NAME = %3` (a register alias), `. = . + 10` (move the location counter).
 Local labels (`1$`, `2$`, …) are scoped between two ordinary labels. Numbers: octal, `10.`
@@ -294,7 +299,8 @@ refusing writes in `bus.write`.
 | Member | |
 | :--- | :--- |
 | `add(device): this` | plug in; throws on overlap with RAM, the PSW or another device, or an odd base/size. Calls `device.attach(cpu)` |
-| `boot(asm)` | clear RAM, `cpu.reset()`, every `device.reset(true)`, copy `asm.bytes` to `asm.origin`, PC = `asm.start`, SP = `asm.origin` (or `1000` if the origin is below `400`), counters to 0 |
+| `boot(asm)` | clear RAM, `cpu.reset()`, every `device.reset(true)`, copy `asm.bytes` to `asm.origin`, `start(asm)`, counters to 0 |
+| `start(asm)` | PC = `asm.start`, SP = `asm.origin` (or `1000` if the origin is below `400`); memory, devices and counters untouched. For a host that loads programs its own way |
 | `run(maxCycles, breakpoints?): RunResult` | like `Cpu.run`, keeping devices in step (see below) |
 | `step(): RunResult` | one instruction, devices advanced by its cycles |
 | `read(addr, byte)` / `write(addr, value, byte)` | the bus, for the host too. Reading a device register has its side effects (e.g. RBUF clears DONE) |
@@ -431,6 +437,8 @@ for (let a = asm.origin; a < asm.origin + asm.bytes.length;) {
   OpInfo | null`. `OpInfo`: `{ name, opcode, format, byte?, eis? }`; `format` is one of
   `double single branch jsr rts sob regsrc xor trap none`.
 - `octal(n, digits = 6)`: `octal(0o1000)` → `'001000'`.
+- `REGISTER_NAMES`: `R0`–`R5`, `SP`, `PC`, as the disassembler writes them. `REGISTERS`:
+  every name the assembler takes for one (`R0`–`R7`, `SP`, `PC`) with its number.
 - CodeMirror 6 (needs `@codemirror/language` and `@lezer/highlight`):
   `import { blue11Asm, blue11Highlight } from './blue11/codemirror'`, then
   `extensions: [blue11Asm, blue11Highlight]`. It highlights labels (incl. `1$`),

@@ -105,6 +105,25 @@ export function decodeOp(word: number): OpInfo | null {
   return null;
 }
 
+/** Register names as the disassembler writes them: R6 is SP, R7 is PC. */
+export const REGISTER_NAMES: readonly string[] = ['R0', 'R1', 'R2', 'R3', 'R4', 'R5', 'SP', 'PC'];
+
+/** Every name the assembler takes for a register (R0–R7, SP, PC), with its number. */
+export const REGISTERS: Readonly<Record<string, number>> = Object.freeze({
+  R0: 0, R1: 1, R2: 2, R3: 3, R4: 4, R5: 5, R6: 6, R7: 7, SP: 6, PC: 7,
+});
+
+/** CLC, SEV, CCC, …: the flag operations (000241–000277), which combine with `!`. */
+export function isFlagOp(op: OpInfo): boolean {
+  return op.format === 'none' && op.opcode > 0o000240 && op.opcode < 0o000300;
+}
+
+/** The signed word offset in the low byte of a branch. */
+export function branchOffset(w: number): number {
+  const off = w & 0o377;
+  return off & 0o200 ? off - 0o400 : off;
+}
+
 /** Six octal digits, the traditional way of writing a word. */
 export function octal(n: number, digits = 6): string {
   return (n >>> 0).toString(8).padStart(digits, '0');

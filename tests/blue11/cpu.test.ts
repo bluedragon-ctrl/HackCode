@@ -357,6 +357,24 @@ CLK:    INC R1
     expect(c.waiting).toBe(false);
   });
 
+  it('an interrupt the host stops on stays pending, and WAIT still waits', () => {
+    const bus: Bus = { read: () => 0, write: () => true };
+    const c = new Cpu(bus);
+    c.r[7] = 0o1000;
+    c.waiting = true;
+    c.interrupt(0o60, 4);
+    c.onTrap = () => 'stop';
+    for (let i = 0; i < 2; i++) {
+      const r = c.run(10);
+      expect(r.reason).toBe('trap');
+      expect(r.trap).toMatchObject({ vector: 0o60, cause: 'interrupt', pc: 0o1000 });
+      expect(c.waiting).toBe(true);
+      expect(c.r[7]).toBe(0o1000);
+    }
+    c.cancelInterrupt(0o60);
+    expect(c.run(10).reason).toBe('wait');
+  });
+
   it('HALT stops and stays stopped until cleared', () => {
     const { cpu, result } = runAsm(' HALT\n MOV #1, R0\n HALT');
     expect(result.reason).toBe('halt');

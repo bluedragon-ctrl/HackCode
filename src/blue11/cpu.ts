@@ -125,7 +125,8 @@ export class Cpu {
   /**
    * Called before a trap or interrupt is taken. Return 'stop' to have `run` / `step`
    * stop instead (the host handles it; the PC is left at the trapping instruction for
-   * faults, after it for EMT / TRAP / BPT / IOT).
+   * faults, after it for EMT / TRAP / BPT / IOT; an interrupt stays pending, and `WAIT`
+   * still waiting, until the host clears it or returns 'vector').
    */
   onTrap: ((t: TrapInfo) => 'vector' | 'stop') | null = null;
   /**
@@ -398,12 +399,19 @@ export class Cpu {
     }
     if (best < 0) return { cycles: 0 };
     const p = this.pending[best];
+    const wasWaiting = this.waiting;
     this.pending.splice(best, 1);
     this.waiting = false;
     this.cyc = 0;
     const t: TrapInfo = { vector: p.vector, cause: 'interrupt', pc: this.r[PC] };
     try {
-      if (this.enter(t) === 'stop') return { cycles: this.cyc, stop: t };
+      if (this.enter(t) === 'stop') {
+        // The host takes it: leave the request pending and the CPU as it was, so the
+        // next run stops on it again instead of going on as if it had been served.
+        this.pending.splice(best, 0, p);
+        this.waiting = wasWaiting;
+        return { cycles: this.cyc, stop: t };
+      }
     } catch (e) {
       if (e instanceof DoubleFault) { this.halted = true; return { cycles: this.cyc, fault: e.trap }; }
       throw e;

@@ -1,7 +1,7 @@
 /** The expedition mode: one seed, level after level, the robot's state carried (DESIGN.md §8). */
 import { describe, expect, it } from 'vitest';
 import { ENERGY_MAX, generateLevel, ROBOT_HP } from '../../src/core';
-import { Expedition, EXPEDITION_STARTER, SEED_MAX } from '../../src/ui/expedition';
+import { ENERGY_FLOOR, Expedition, EXPEDITION_STARTER, SEED_MAX } from '../../src/ui/expedition';
 
 /** A seed on which the starter program clears the first two levels. */
 const SEED = 0o12;
@@ -41,6 +41,19 @@ describe('expedition', () => {
     expect([next.hp, next.energy, next.coins]).toEqual([r.hp, r.energy, r.coins]);
   });
 
+  it('a robot that reaches the exit nearly empty enters the next level with ENERGY_FLOOR', () => {
+    const e = new Expedition(SEED);
+    const { s, stop } = play(e);
+    expect(stop).toBe('won');
+    s.world.robot.energy = 2;
+    e.descend(s.world);
+    expect(e.carried.energy).toBe(ENERGY_FLOOR);
+    expect(e.session().world.robot.energy).toBe(ENERGY_FLOOR);
+    // Kept state from before the floor is raised to it too.
+    const old = Expedition.restore({ ...e.state, carried: { coins: 0, energy: 0 } });
+    expect(old?.session().world.robot.energy).toBe(ENERGY_FLOOR);
+  });
+
   it('the starter program clears two levels of its seed with the same program', () => {
     const e = new Expedition(SEED);
     for (let depth = 1; depth <= 2; depth++) {
@@ -61,15 +74,15 @@ describe('expedition', () => {
   });
 
   it('a retry starts the level again as the robot entered it', () => {
-    const e = new Expedition(SEED, { depth: 2, carried: { hp: 50, energy: 1234, coins: 7 } });
+    const e = new Expedition(SEED, { depth: 2, carried: { hp: 50, energy: 4321, coins: 7 } });
     const { s } = play(e, 50);
     s.reset();
     const r = s.world.robot;
-    expect([r.hp, r.energy, r.coins, s.world.tick]).toEqual([50, 1234, 7, 0]);
+    expect([r.hp, r.energy, r.coins, s.world.tick]).toEqual([50, 4321, 7, 0]);
   });
 
   it('keeps its state and refuses state that is not one', () => {
-    const e = new Expedition(0o1234, { depth: 3, ticks: 400, carried: { hp: 60, energy: 900, coins: 5 } });
+    const e = new Expedition(0o1234, { depth: 3, ticks: 400, carried: { hp: 60, energy: 3000, coins: 5 } });
     const back = Expedition.restore(JSON.parse(JSON.stringify(e.state)));
     expect(back?.state).toEqual(e.state);
     expect(Expedition.restore(new Expedition(5).state)?.state).toEqual({ seed: 5, depth: 1, ticks: 0, carried: { coins: 0 } });

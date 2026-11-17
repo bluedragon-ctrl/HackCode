@@ -440,8 +440,11 @@ of one expedition differs. The world's seed (monsters' random numbers) comes fro
   octal digits (typed, or a random one for a new expedition; chance is used only in the page,
   never in the simulation), depth 1 first. The same program runs on every level: at the exit
   the next level is built and the program loaded afresh (registers, devices and RAM new) and,
-  if it was running, it runs on. The robot's **HP, energy and coins** come along; its
-  inventory does not. A run that fails (destroyed, stuck) is retried with Run or Reset map:
+  if it was running, it runs on. The program carried on is the one that reached the exit,
+  even if the editor was changed during the run (the edits run at the next Run). The robot's
+  **HP, energy and coins** come along; its inventory does not. Energy is raised to at least
+  `ENERGY_FLOOR` (2500., a quarter of full) on entering a level, so a robot that reached
+  the exit nearly empty is not stuck retrying a level it cannot finish. A run that fails (destroyed, stuck) is retried with Run or Reset map:
   the level starts again as the robot entered it, so a level can be studied and the program
   fixed. "New expedition" starts over from depth 1. The browser keeps the expedition under
   way (seed, depth, what the robot brought in, ticks so far), its program and the deepest

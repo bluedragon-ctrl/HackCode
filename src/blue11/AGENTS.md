@@ -38,8 +38,8 @@ User documentation: [`README.md`](README.md). Design rationale: `docs/BLUE11_CPU
 | Change | File | Tests |
 | :--- | :--- | :--- |
 | An instruction | `isa.ts` (name, opcode, format), `cpu.ts` (`exec`), `disassembler.ts` for a new format | `cpu.test.ts`; `assembler.test.ts` assembles and disassembles every table entry |
-| Assembler syntax, directives, warnings | `assembler.ts` | `assembler.test.ts`, `syntax.test.ts`, `syntax-compat.test.ts` |
-| Bus, devices, time, `WAIT` | `devices.ts` (`DeviceMachine`, `DL11`, `KW11L`) | `devices.test.ts`, `review-fixes.test.ts` |
+| Assembler syntax, directives, warnings | `assembler.ts` | `assembler.test.ts`, `syntax.test.ts` (compatibility claims), `syntax-warnings.test.ts` (implicit `.WORD`, warnings) |
+| Bus, devices, time, `WAIT` | `devices.ts` (`DeviceMachine`, `DL11`, `KW11L`) | `devices.test.ts`, `cpu.test.ts` (interrupts) |
 | `SimpleMachine` | `machine.ts` | `examples.test.ts` (the programs in `src/simulator/examples.ts`), `readme-examples.test.ts` |
 | Syntax highlighting | `codemirror.ts` | – |
 | Public API | `index.ts` | `boundary.test.ts` |

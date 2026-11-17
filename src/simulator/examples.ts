@@ -29,7 +29,8 @@ PUTC:   TSTB @#XCSR             ; ready? (bit 7 = sign bit of the low byte)
         MOVB R0, @#XBUF         ; send the character to the terminal
         RTS  PC                 ; back to the caller`;
 
-const DIV16 = `
+/** Unsigned 16-bit division, as a subroutine (also used by tests/blue11/assembler.test.ts). */
+export const DIV16 = `
 ; DIV16: R0 = R0 / R1, R1 = remainder (unsigned). C = 1 if R1 was 0.
 DIV16:  TST  R1                 ; dividing by 0?
         BNE  1$                 ; no: go on
@@ -65,7 +66,8 @@ PRDEC:  MOV  #10., R1            ; divide by ten
         ADD  #'0, R0            ; digit -> character
         JMP  PUTC               ; PUTC returns for us`;
 
-const MUL16 = `
+/** 16-bit multiplication without EIS, as a subroutine (also used by tests/blue11/assembler.test.ts). */
+export const MUL16 = `
 ; MUL16: R0 = R0 * R1 (low 16 bits). Changes R1.
 MUL16:  MOV  R2, -(SP)          ; save R2
         CLR  R2                 ; running sum

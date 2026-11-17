@@ -4,17 +4,12 @@ import {
   addMonster, FLAG, HEADING, LOOT, loot, Monster, MONSTER_MEMORY, MONSTER_REG, MONSTER_SYMBOLS, MONSTERS, monsterScript,
   OBJECTS, parseMap, scan, SYMBOLS, type World,
 } from '../../src/core';
-import { asm } from './helpers';
+import { asm, loadOn } from './helpers';
 
 /** The robot idles in a busy loop, so the world keeps running. */
 const IDLE = '1$: BR 1$';
 
-function start(map: string, program = IDLE, seed = 0): World {
-  const w = parseMap(map, { seed });
-  const err = w.robot.load(asm(program));
-  if (err) throw new Error(err);
-  return w;
-}
+const start = (map: string, program = IDLE, seed = 0): World => loadOn(parseMap(map, { seed }), program);
 
 const monsters = (w: World) => w.actors.filter((a): a is Monster => a instanceof Monster);
 

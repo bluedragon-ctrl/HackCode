@@ -2,20 +2,17 @@
 import { describe, expect, it } from 'vitest';
 import { VEC } from '../../src/blue11';
 import { BIOS_CALL, bios, biosEntry, ENERGY_MAX, ERR, HEADING, MEMORY, OBJECTS, SYMBOLS, TYPE, type World } from '../../src/core';
-import { asm, load, world } from './helpers';
+import { asm, load, loadOn, r, reg, world } from './helpers';
 
 /** Run until HALT; the robot is at (2,2) facing east in a 12×12 world unless set up otherwise. */
 function run(src: string, setup?: (w: World) => void): World {
   const w = world();
   setup?.(w);
-  const err = w.robot.load(asm(src));
-  if (err) throw new Error(err);
-  expect(w.run(2000).reason).toBe('halt');
+  expect(loadOn(w, src).run(2000).reason).toBe('halt');
   return w;
 }
 
 const C = 1;
-const r = (w: World, n: number) => w.robot.cpu.r[n];
 
 describe('BIOS image', () => {
   it('assembles into the ROM, below its end', () => {
@@ -24,16 +21,16 @@ describe('BIOS image', () => {
     expect(b.origin).toBe(MEMORY.ROM_BASE);
     expect(b.bytes.length).toBeLessThan(MEMORY.ROM_SIZE);
     const w = world();
-    expect(w.robot.machine.read(biosEntry(), false)).toBe(b.bytes[biosEntry() - b.origin] | (b.bytes[biosEntry() - b.origin + 1] << 8));
+    expect(reg(w, biosEntry())).toBe(b.bytes[biosEntry() - b.origin] | (b.bytes[biosEntry() - b.origin + 1] << 8));
   });
 
   it('every load points the EMT vector at the BIOS; a program can replace it', () => {
     const w = load(' HALT');
-    expect(w.robot.machine.read(VEC.EMT, false)).toBe(biosEntry());
-    expect(w.robot.machine.read(VEC.EMT + 2, false)).toBe(0);
+    expect(reg(w, VEC.EMT)).toBe(biosEntry());
+    expect(reg(w, VEC.EMT + 2)).toBe(0);
     w.robot.machine.write(VEC.EMT, 0, false);
     w.robot.load(asm(' HALT'), { clearRam: true });
-    expect(w.robot.machine.read(VEC.EMT, false)).toBe(biosEntry());
+    expect(reg(w, VEC.EMT)).toBe(biosEntry());
 
     const own = run(' MOV #5, R0\n EMT MOVE\n HALT\nMINE: MOV #123, R3\n RTI\n . = 30\n .WORD MINE, 0\n .END 1000');
     expect(r(own, 3)).toBe(0o123);
@@ -98,7 +95,7 @@ describe('BIOS calls', () => {
     const buf = r(w, 0);
     expect(buf).toBeGreaterThan(0o1000);
     expect(r(w, 1)).toBe(20);
-    expect(w.robot.machine.read(buf, false) & 0xff).toBe(TYPE.COIN);
+    expect(reg(w, buf) & 0xff).toBe(TYPE.COIN);
   });
 
   it('GRAB returns the slot of an item, or -1 for coins', () => {
@@ -126,14 +123,14 @@ describe('BIOS calls', () => {
 
   it('CHARGE takes R0 energy (0 = until full) from the charger in front and returns what it gained', () => {
     const charger = (w: World) => w.grid.set('occupant', 3, 2, OBJECTS.charger());
-    const full = world({ robot: { x: 2, y: 2, heading: 1, energy: 1000 } });
+    const full = world({ robot: { energy: 1000 } });
     charger(full);
     full.robot.load(asm(' CLR R0\n EMT CHARGE\n HALT'));
     expect(full.run(2000).reason).toBe('halt');
     expect(full.robot.energy).toBe(ENERGY_MAX);
     expect(r(full, 0)).toBe(ENERGY_MAX - 1000);
 
-    const some = world({ robot: { x: 2, y: 2, heading: 1, energy: 1000 } });
+    const some = world({ robot: { energy: 1000 } });
     charger(some);
     some.robot.load(asm(' MOV #200., R0\n EMT CHARGE\n HALT'));
     some.run(2000);

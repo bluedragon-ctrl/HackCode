@@ -89,7 +89,7 @@ IDLE:   RTI`);
   });
 
   it('energy never goes below 0; the CPU keeps running', () => {
-    const w = load(LOOP, { robot: { x: 2, y: 2, heading: 1, energy: 3 } });
+    const w = load(LOOP, { robot: { energy: 3 } });
     expect(w.run(50).reason).toBe('tick');
     expect(w.robot.energy).toBe(0);
     expect(w.tick).toBe(50);

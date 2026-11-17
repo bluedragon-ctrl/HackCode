@@ -1,11 +1,11 @@
 /** The status line for a trap with no handler. */
 import { describe, expect, it } from 'vitest';
 import { describeTrap } from '../../src/ui/traps';
-import { load, runUntilStop } from '../core/helpers';
+import { load } from '../core/helpers';
 
 function message(insn: string): string {
   const w = load(`START: ${insn}\n HALT\n .END START`);
-  const r = runUntilStop(w);
+  const r = w.run(1000);
   expect(r.reason).toBe('trap');
   return describeTrap(r.trap!, w.robot);
 }

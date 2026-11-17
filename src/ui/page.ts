@@ -1,5 +1,5 @@
 /**
- * The game page: the lesson picker and bar, the editor, the map, Run / Continue / Pause /
+ * The game page: the lesson picker and bar, the expedition bar, the editor, the map, Run / Continue / Pause /
  * Step / Step tick, the robot, CPU and console panels, and the debugger (breakpoints,
  * heat map, disassembly, memory). The simulation runs in whole ticks paced by animation
  * frames; the speed setting is the only use of wall-clock time, and it never reaches the core.
@@ -25,9 +25,12 @@ import { LessonView } from './lessons/view';
 import { BIOS_PROGRAM, TEST_MAP, TEST_PROGRAM } from './samples';
 import { Session, type StepResult } from './session';
 import { describeTrap } from './traps';
+import { Expedition, EXPEDITION_STARTER, SEED_MAX } from './expedition';
 
 /** The id under which the sandbox (the test map, no lesson) keeps its program. */
 const SANDBOX = 'sandbox';
+/** The id of the expedition (its program, and the picker's entry). */
+const EXPEDITION = 'expedition';
 
 const HEADINGS = ['N', 'E', 'S', 'W'];
 const REGS = ['R0', 'R1', 'R2', 'R3', 'R4', 'R5', 'SP', 'PC'];
@@ -45,6 +48,8 @@ export function startPage(): void {
   let session = new Session(TEST_MAP);
   /** The lesson open, or null in the sandbox. */
   let lesson: Lesson | null = null;
+  /** The expedition, when it is open. */
+  let expedition: Expedition | null = null;
   let currentId = SANDBOX;
   const renderer: Renderer = new CanvasRenderer($<HTMLCanvasElement>('map'));
   const status = $<HTMLDivElement>('status');
@@ -211,11 +216,14 @@ export function startPage(): void {
   function report(res: StepResult): boolean {
     switch (res.stop) {
       case 'tick': return true;
-      case 'won': won(); return false;
+      case 'won': return won();
       case 'failed': showStatus(`${session.failure} Run again to retry.`, 'error'); return false;
       case 'halt': showStatus(`HALT at ${octal(session.world.robot.cpu.r[7] - 2)}.`); return false;
       case 'wait': showStatus('WAIT with nothing to wake the CPU: stopped.', 'error'); return false;
-      case 'destroyed': showStatus('The robot is destroyed. Run again to retry.', 'error'); return false;
+      case 'destroyed':
+        showStatus(expedition ? `The robot is destroyed at depth ${octal(expedition.depth, 1)}. Run again to retry the level, or start a new expedition.`
+          : 'The robot is destroyed. Run again to retry.', 'error');
+        return false;
       case 'double-fault': showStatus('Double fault: the CPU stopped. Run again to reboot.', 'error'); return false;
       case 'breakpoint': showStatus(`Breakpoint at ${octal(session.world.robot.cpu.r[7])}.`); return false;
       case 'trap': {
@@ -227,15 +235,34 @@ export function startPage(): void {
     }
   }
 
-  function won(): void {
+  /** The goal is reached; returns true if the program goes on (the expedition's next level). */
+  function won(): boolean {
     const ticks = octal(session.world.tick);
-    if (!lesson) { showStatus(`Exit reached in ${ticks} ticks.`, 'win'); return; }
+    if (expedition) return descend();
+    if (!lesson) { showStatus(`Exit reached in ${ticks} ticks.`, 'win'); return false; }
     progress.complete(lesson.id);
     lessonView.setDone(true);
     fillPicker();
     const last = lesson.number === LESSONS.length - 1;
     showStatus(`Lesson ${lesson.number} complete in ${ticks} ticks!`
       + (last ? ' That was the last lesson: the sandbox is yours.' : ' On to the next lesson →'), 'win');
+    return false;
+  }
+
+  /** The expedition's exit: the next level, with the same program loaded afresh. */
+  function descend(): boolean {
+    const e = expedition;
+    if (!e) return false;
+    const cleared = e.depth;
+    const ticks = session.world.tick;
+    e.descend(session.world);
+    progress.expedition = e.state;
+    progress.reachDepth(e.depth);
+    session = e.session();
+    showExpedition();
+    if (!loadEditor()) return false;
+    showStatus(`Depth ${octal(cleared, 1)} cleared in ${octal(ticks)} ticks. Down to depth ${octal(e.depth, 1)}…`, 'win');
+    return true;
   }
 
   function loadEditor(): boolean {
@@ -305,7 +332,8 @@ export function startPage(): void {
       return;
     }
     syncBreakpoints();
-    if (report(f())) showStatus(`Stepped: tick ${octal(session.world.tick)}, PC ${octal(session.world.robot.cpu.r[7])}.`);
+    const res = f();
+    if (report(res) && res.stop === 'tick') showStatus(`Stepped: tick ${octal(session.world.tick)}, PC ${octal(session.world.robot.cpu.r[7])}.`);
     show();
   }
 
@@ -341,7 +369,7 @@ export function startPage(): void {
   function fillPicker(): void {
     const done = progress.done;
     picker.replaceChildren(...LESSONS.map((l) => new Option(`${l.number} · ${l.title}${done.has(l.id) ? '  ✓' : ''}`, l.id)),
-      new Option('Sandbox: free play', SANDBOX));
+      new Option('Expedition: level after level', EXPEDITION), new Option('Sandbox: free play', SANDBOX));
     picker.value = currentId;
   }
   picker.addEventListener('change', () => { openLesson(picker.value); picker.blur(); });
@@ -353,22 +381,82 @@ export function startPage(): void {
     next: () => { if (lesson && lesson.number + 1 < LESSONS.length) openLesson(LESSONS[lesson.number + 1].id); },
   });
 
-  /** Open a lesson (or the sandbox) with its map and the program last written for it. */
+  /** Open a lesson (or the expedition, or the sandbox) with its map and the program last written for it. */
   function openLesson(id: string, briefing = true): void {
     stop();
     lesson = LESSONS.find((l) => l.id === id) ?? null;
-    currentId = lesson ? lesson.id : SANDBOX;
+    currentId = lesson ? lesson.id : id === EXPEDITION ? EXPEDITION : SANDBOX;
     progress.current = currentId;
-    session = lesson ? new Session(lesson.map, { ...lesson.mapOptions, goal: lesson.goal, rules: lesson.rules }) : new Session(TEST_MAP);
+    expedition = currentId === EXPEDITION ? Expedition.restore(progress.expedition) ?? newExpedition(randomSeed()) : null;
+    session = lesson ? new Session(lesson.map, { ...lesson.mapOptions, goal: lesson.goal, rules: lesson.rules })
+      : expedition ? expedition.session() : new Session(TEST_MAP);
     romBreakpoints.clear();
-    setSource(progress.code(currentId) ?? (lesson ? lesson.starter : BIOS_PROGRAM));
+    setSource(progress.code(currentId) ?? (lesson ? lesson.starter : expedition ? EXPEDITION_STARTER : BIOS_PROGRAM));
     lessonView.show(lesson, progress.done.has(currentId), lesson?.number === LESSONS.length - 1);
+    showExpedition();
     fillPicker();
     showStatus(lesson ? `${plain(lesson.goal.text)} Run: Ctrl+Enter. Help: F1.`
+      : expedition ? expeditionStatus()
       : 'Press Run (Ctrl+Enter) to drive the robot to the exit. F1: help.');
     show();
     if (lesson && briefing) lessonView.brief();
   }
+
+  // ---------------------------------------------------------------- expedition
+
+  const expBar = $<HTMLDivElement>('expedition-bar');
+  const seedInput = $<HTMLInputElement>('exp-seed');
+
+  /** A seed for a new expedition: the page's one use of chance, outside the simulation. */
+  function randomSeed(): number { return Math.floor(Math.random() * (SEED_MAX + 1)); }
+
+  function newExpedition(seed: number): Expedition {
+    const e = new Expedition(seed);
+    progress.expedition = e.state;
+    progress.reachDepth(1);
+    return e;
+  }
+
+  function expeditionStatus(): string {
+    return `Expedition, depth ${octal(expedition?.depth ?? 1, 1)}: reach the exit. The same program runs on every level. Run: Ctrl+Enter.`;
+  }
+
+  /** The expedition bar: seed, depth, what the robot brought in, the deepest level reached. */
+  function showExpedition(): void {
+    expBar.hidden = !expedition;
+    if (!expedition) return;
+    const e = expedition;
+    const c = e.carried;
+    expBar.querySelector('.exp-title')!.textContent = `Expedition — depth ${octal(e.depth, 1)}`;
+    expBar.querySelector('.exp-info')!.textContent = [
+      `seed ${octal(e.seed, 6)}`,
+      `brought in: HP ${c.hp ?? 'full'}${c.hp !== undefined ? '.' : ''}, energy ${c.energy ?? 'full'}${c.energy !== undefined ? '.' : ''}, coins ${octal(c.coins, 1)}`,
+      `ticks so far ${octal(e.ticks, 1)}`,
+      `deepest ${octal(progress.bestDepth || 1, 1)}`,
+    ].join(' · ');
+    if (document.activeElement !== seedInput) seedInput.value = octal(e.seed, 6);
+    seedInput.classList.remove('bad');
+  }
+
+  /** Start an expedition on `seed` from depth 1; the program in the editor stays. */
+  function startExpedition(seed: number): void {
+    stop();
+    expedition = newExpedition(seed);
+    session = expedition.session();
+    romBreakpoints.clear();
+    showExpedition();
+    showStatus(`New expedition on seed ${octal(seed, 6)}. ` + expeditionStatus());
+    show();
+  }
+
+  $('exp-start').addEventListener('click', () => {
+    const v = seedInput.value.trim();
+    if (!/^[0-7]{1,6}$/.test(v)) { seedInput.classList.add('bad'); showStatus('A seed is up to six octal digits (0–7).', 'error'); return; }
+    startExpedition(parseInt(v, 8));
+  });
+  seedInput.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') $('exp-start').click(); });
+  $('exp-new').addEventListener('click', () => startExpedition(randomSeed()));
+  $('exp-starter').addEventListener('click', () => setSource(EXPEDITION_STARTER));
 
   const dialog = $<HTMLDialogElement>('bios');
   $<HTMLPreElement>('bios-source').textContent = BIOS_SOURCE;

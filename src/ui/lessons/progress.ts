@@ -1,6 +1,7 @@
 /**
  * What the player has done, kept in the browser: the lessons completed, the program in
- * the editor for each lesson (and the sandbox), the lesson open last. Any Storage works
+ * the editor for each lesson (and the sandbox and the expedition), the lesson open last,
+ * the expedition under way and the deepest level reached. Any Storage works
  * (localStorage on the page, a Map in tests); a storage that fails is ignored.
  */
 
@@ -37,11 +38,24 @@ export class Progress {
     this.set('done', JSON.stringify([...d]));
   }
 
-  /** The program kept for a lesson (or 'sandbox'), or null. */
+  /** The program kept for a lesson (or 'sandbox', 'expedition'), or null. */
   code(id: string): string | null { return this.get(`code.${id}`); }
   saveCode(id: string, source: string): void { this.set(`code.${id}`, source); }
 
-  /** The lesson (or 'sandbox') open last, or null. */
+  /** The lesson (or 'sandbox', 'expedition') open last, or null. */
   get current(): string | null { return this.get('current'); }
   set current(id: string | null) { if (id) this.set('current', id); }
+
+  /** The expedition under way, as it was saved (checked by its reader), or null. */
+  get expedition(): unknown {
+    try { return JSON.parse(this.get('expedition') ?? 'null'); } catch { return null; }
+  }
+  set expedition(state: unknown) { this.set('expedition', JSON.stringify(state)); }
+
+  /** The deepest expedition level reached (0: none yet). */
+  get bestDepth(): number {
+    const n = Number(this.get('best') ?? 0);
+    return Number.isInteger(n) && n > 0 ? n : 0;
+  }
+  reachDepth(depth: number): void { if (depth > this.bestDepth) this.set('best', String(depth)); }
 }

@@ -45,4 +45,10 @@ describe('text maps', () => {
     expect(w.moveRobot(1, 0)).toBe(true);
     expect(w.atExit).toBe(true);
   });
+
+  it('starts the robot with the HP, energy and coins given', () => {
+    const r = parseMap('>.E', { robot: { hp: 40, energy: 500, coins: 9 } }).robot;
+    expect([r.hp, r.energy, r.coins]).toEqual([40, 500, 9]);
+    expect(parseMap('>.E').robot.coins).toBe(0);
+  });
 });

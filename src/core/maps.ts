@@ -21,8 +21,8 @@ const ROBOT: Readonly<Record<string, number>> = { '^': HEADING.N, '>': HEADING.E
 const MONSTER: Readonly<Record<string, MonsterKind>> = { P: MONSTERS.patrol, H: MONSTERS.chaser, S: MONSTERS.sentry };
 
 export interface MapOptions {
-  /** Robot energy and HP at the start (defaults: full). */
-  robot?: Pick<RobotOptions, 'energy' | 'hp'>;
+  /** Robot energy and HP at the start (defaults: full), and coins (default 0). */
+  robot?: Pick<RobotOptions, 'energy' | 'hp' | 'coins'>;
   /** Seed of the world's random numbers (default 0). */
   seed?: number;
 }

@@ -56,6 +56,16 @@
             <button class="lesson-next" title="On to the next lesson">Next lesson →</button>
           </div>
         </div>
+        <div id="expedition-bar" class="lesson-bar expedition-bar" hidden>
+          <div class="lesson-head"><span class="lesson-title exp-title"></span></div>
+          <div class="exp-info"></div>
+          <div class="toolbar">
+            <label class="exp-seed">Seed <input id="exp-seed" spellcheck="false" maxlength="6" title="Up to six octal digits"></label>
+            <button id="exp-start" class="secondary" title="Start an expedition on this seed, from depth 1">Start</button>
+            <button id="exp-new" title="A new expedition on a random seed">New expedition</button>
+            <button id="exp-starter" class="secondary" title="Put the starter program back">Starter program</button>
+          </div>
+        </div>
         <canvas id="map"></canvas>
       </section>
       <section class="pane side">

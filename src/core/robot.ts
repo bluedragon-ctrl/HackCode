@@ -44,6 +44,8 @@ export interface RobotOptions {
   heading?: number;
   energy?: number;
   hp?: number;
+  /** Coins carried (default 0): an expedition brings them from level to level. */
+  coins?: number;
 }
 
 export interface LoadOptions {
@@ -85,6 +87,7 @@ export class Robot {
     this.y = opts.y;
     this.heading = (opts.heading ?? 0) & 3;
     this.energy = opts.energy ?? ENERGY_MAX;
+    this.coins = (opts.coins ?? 0) & 0xffff;
     this.machine = new DeviceMachine({ memory: MEMORY.RAM_END, eis: false });
     this.wheels = new Wheels(this);
     this.laser = new Laser(this);

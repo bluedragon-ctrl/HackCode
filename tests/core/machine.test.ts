@@ -112,6 +112,18 @@ CLK:    INC R0
     expect(w.robot.machine.read(0o20000, false)).toBe(0);
   });
 
+  it('load clears the vectors: a handler left by the last program is not used', () => {
+    const w = world();
+    expect(w.robot.load(asm(' MOV #H, @#34\n HALT\nH: RTI'))).toBeNull();
+    w.run(1);
+    expect(w.robot.machine.read(0o34, false)).not.toBe(0);
+    w.robot.load(asm(' TRAP 0\n HALT'));
+    expect(w.robot.machine.read(0o34, false)).toBe(0);
+    const r = w.run(1);
+    expect(r.reason).toBe('trap');
+    expect(r.trap?.vector).toBe(0o34);
+  });
+
   it('load resets registers and PSW, PC = start, SP = origin', () => {
     const w = world();
     w.robot.load(asm(' MOV #7, R3\n MOV #17, @#177776\n HALT'));

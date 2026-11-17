@@ -31,6 +31,11 @@ export interface Lesson {
   id: string;
   /** Shown as "Lesson n". */
   number: number;
+  /**
+   * Bumped when the lesson changes so much that programs saved for it no longer fit (new
+   * rules): those are then left in storage and the starter opens instead. Absent: 1.
+   */
+  revision?: number;
   title: string;
   map: string;
   mapOptions?: MapOptions;
@@ -66,6 +71,11 @@ export function exitWithEnergy(energy: number): Goal {
     failed: (w) => (w.atExit && w.robot.energy < energy
       ? `Exit reached with ${w.robot.energy}. energy: the goal is at least ${energy}.` : null),
   };
+}
+
+/** The key the lesson's program is saved under: its id, plus the revision from 2 on. */
+export function codeId(lesson: Pick<Lesson, 'id' | 'revision'>): string {
+  return (lesson.revision ?? 1) > 1 ? `${lesson.id}.r${lesson.revision}` : lesson.id;
 }
 
 /** The mnemonics of a source, upper case: the first word of each line after its labels. */

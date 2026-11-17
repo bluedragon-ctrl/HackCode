@@ -116,9 +116,10 @@ export class Robot {
   get hp(): number { return this.world.grid.get('occupant', this.x, this.y).hp; }
 
   /**
-   * Load a program (DESIGN.md §3 "Run"): point the EMT vector at the BIOS, copy the
-   * program into RAM (it may replace the vector), reset the registers and PSW and the
-   * devices (as `RESET`), PC = start, SP = origin. RAM, the world and time persist.
+   * Load a program (DESIGN.md §3 "Run"): clear the vectors (000–377), point the EMT vector
+   * at the BIOS, copy the program into RAM (it may replace the vector), reset the registers
+   * and PSW and the devices (as `RESET`), PC = start, SP = origin. The rest of RAM, the
+   * world and time persist: a handler left by an earlier program is never jumped to.
    * Returns an error message, or null.
    */
   load(asm: Pick<AssembleResult, 'origin' | 'bytes' | 'start'> & { symbols?: ReadonlyMap<string, number> },
@@ -126,6 +127,7 @@ export class Robot {
     if (asm.origin + asm.bytes.length > MEMORY.RAM_END) return 'program does not fit in RAM (000000–137777)';
     const m = this.machine;
     if (opts.clearRam) m.ram.fill(0);
+    else m.ram.fill(0, 0, 0o400);
     // EMT vector: new PC = the BIOS entry, new PSW = 0.
     const e = biosEntry();
     m.ram.set([e & 0xff, e >> 8, 0, 0], VEC.EMT);

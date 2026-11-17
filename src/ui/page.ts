@@ -19,7 +19,7 @@ import { helpTooltip } from './help/tooltip';
 import { HelpView } from './help/view';
 import { plain } from './help/model';
 import { LESSONS } from './lessons/lessons';
-import type { Lesson } from './lessons/model';
+import { codeId, type Lesson } from './lessons/model';
 import { Progress, type KeyValue } from './lessons/progress';
 import { LessonView } from './lessons/view';
 import { BIOS_PROGRAM, TEST_MAP, TEST_PROGRAM } from './samples';
@@ -51,6 +51,8 @@ export function startPage(): void {
   /** The expedition, when it is open. */
   let expedition: Expedition | null = null;
   let currentId = SANDBOX;
+  /** The key the editor's program is saved under (a lesson's includes its revision). */
+  let codeKey = SANDBOX;
   const renderer: Renderer = new CanvasRenderer($<HTMLCanvasElement>('map'));
   const status = $<HTMLDivElement>('status');
   const speed = $<HTMLSelectElement>('speed');
@@ -93,7 +95,7 @@ export function startPage(): void {
           ...defaultKeymap, ...historyKeymap]),
         blue11Asm, blue11Highlight, EditorView.theme({}, { dark: true }),
         EditorView.updateListener.of((u) => {
-          if (u.docChanged) { refreshButtons(); progress.saveCode(currentId, source()); }
+          if (u.docChanged) { refreshButtons(); progress.saveCode(codeKey, source()); }
           // a breakpoint toggled: show it in the disassembly (our own effects are skipped)
           if (!running && u.transactions.some((t) => t.effects.some((e) => !e.is(setHeat) && !e.is(setPcLine) && !e.is(setErrors)))) {
             queueMicrotask(showDebugger);
@@ -389,17 +391,24 @@ export function startPage(): void {
     next: () => { if (lesson && lesson.number + 1 < LESSONS.length) openLesson(LESSONS[lesson.number + 1].id); },
   });
 
+  /** The key a lesson's (or the expedition's, the sandbox's) program is saved under. */
+  function savedCodeKey(id: string): string {
+    const l = LESSONS.find((x) => x.id === id);
+    return l ? codeId(l) : id;
+  }
+
   /** Open a lesson (or the expedition, or the sandbox) with its map and the program last written for it. */
   function openLesson(id: string, briefing = true): void {
     stop();
     lesson = LESSONS.find((l) => l.id === id) ?? null;
     currentId = lesson ? lesson.id : id === EXPEDITION ? EXPEDITION : SANDBOX;
+    codeKey = savedCodeKey(currentId);
     progress.current = currentId;
     expedition = currentId === EXPEDITION ? Expedition.restore(progress.expedition) ?? newExpedition(randomSeed()) : null;
     session = lesson ? new Session(lesson.map, { ...lesson.mapOptions, goal: lesson.goal, rules: lesson.rules })
       : expedition ? expedition.session() : new Session(TEST_MAP);
     romBreakpoints.clear();
-    setSource(progress.code(currentId) ?? (lesson ? lesson.starter : expedition ? EXPEDITION_STARTER : BIOS_PROGRAM));
+    setSource(progress.code(codeKey) ?? (lesson ? lesson.starter : expedition ? EXPEDITION_STARTER : BIOS_PROGRAM));
     lessonView.show(lesson, progress.done.has(currentId), lesson?.number === LESSONS.length - 1);
     showExpedition();
     fillPicker();
@@ -464,7 +473,10 @@ export function startPage(): void {
   });
   seedInput.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') $('exp-start').click(); });
   $('exp-new').addEventListener('click', () => startExpedition(randomSeed()));
-  $('exp-starter').addEventListener('click', () => setSource(EXPEDITION_STARTER));
+  $('exp-starter').addEventListener('click', () => {
+    if (source() === EXPEDITION_STARTER || source().trim() === ''
+      || confirm('Replace your program with the starter program? Your program is not kept.')) setSource(EXPEDITION_STARTER);
+  });
 
   const dialog = $<HTMLDialogElement>('bios');
   $<HTMLPreElement>('bios-source').textContent = BIOS_SOURCE;
@@ -480,5 +492,5 @@ export function startPage(): void {
 
   // First visit: lesson 0 and its briefing. Later: where the player was, briefed only if new to it.
   const first = progress.current ?? LESSONS[0].id;
-  openLesson(first, progress.code(first) === null);
+  openLesson(first, progress.code(savedCodeKey(first)) === null);
 }

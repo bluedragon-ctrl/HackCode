@@ -136,8 +136,12 @@ export class Session {
     return this.run(1, true);
   }
 
-  /** The goal decides first: won, or failed (with the reason kept), else the tick's reason. */
+  /**
+   * A destroyed robot has lost, even on the exit (a bite in the tick it got there). Then the
+   * goal: won, or failed (with the reason kept), else the tick's reason.
+   */
   private outcome(reason: TickReason): Stop {
+    if (this.world.robot.destroyed) { this.failure = null; return 'destroyed'; }
     if (this.goal.won(this.world)) return 'won';
     this.failure = this.goal.failed?.(this.world) ?? null;
     return this.failure ? 'failed' : reason;

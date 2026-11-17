@@ -562,6 +562,8 @@ export const WAIT_ENERGY = 9750;
 
 const interruptsLesson: Lesson = {
   id: 'interrupts', number: 7, title: 'Interrupts and WAIT',
+  // 2: TRAP became a rule; the polling and WAIT programs saved before do not use it.
+  revision: 2,
   map: `
 ###############
 #>............#

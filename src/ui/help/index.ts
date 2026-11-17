@@ -6,7 +6,7 @@
 import { HelpIndex } from './model';
 import { SECTIONS } from './sections';
 
-export { HelpIndex, parseInline, wordAt, type Block, type Entry, type SearchHit, type Section, type Span, type Topic } from './model';
+export { HelpIndex, inComment, parseInline, wordAt, type Block, type Entry, type SearchHit, type Section, type Span, type Topic } from './model';
 export { SECTIONS } from './sections';
 
 export const HELP = new HelpIndex(SECTIONS);

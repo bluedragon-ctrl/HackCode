@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import { assemble, INSTRUCTIONS } from '../../src/blue11';
 import { SYMBOLS } from '../../src/core';
-import { HELP, parseInline, SECTIONS, wordAt, type Block, type Entry } from '../../src/ui/help';
+import { HELP, inComment, parseInline, SECTIONS, wordAt, type Block, type Entry } from '../../src/ui/help';
 import { blockTexts } from '../../src/ui/help/model';
 import { SYMBOL_HELP } from '../../src/ui/help/symbols';
 import { TEST_MAP } from '../../src/ui/samples';
@@ -120,6 +120,17 @@ describe('help lookup', () => {
     expect(HELP.topicFor('R3')).toEqual({ section: 'registers', anchor: 'reg-R1' });
     expect(HELP.topicFor('.WORD')).toEqual({ section: 'assembler', anchor: 'dir-.WORD' });
     expect(HELP.topicFor('LOOP')).toBeNull();
+  });
+
+  it('hover: the entry for a name, and no help in comments', () => {
+    const tip = HELP.entryFor('#WH.FWD');
+    expect(tip?.entry.anchor).toBe('sym-WH.FWD');
+    expect(tip?.section.id).toBe('devices');
+    expect(HELP.entryFor('LOOP')).toBeNull();
+    const line = "  CMPB R0, #';   ; MOV here is a comment";
+    expect(inComment(line, 3)).toBe(false);
+    expect(inComment(line, 12)).toBe(false); // the ';' is a character constant
+    expect(inComment(line, 20)).toBe(true);
   });
 
   it('search puts the named entry first', () => {

@@ -14,6 +14,8 @@ import { bios, BIOS_SOURCE, ENERGY_MAX, MEMORY } from '../core';
 import { CanvasRenderer, type Renderer } from '../render';
 import { addressNamer, disassemblyAround, lineHeat, memoryRows, parseAddress } from './debug';
 import { breakpointLines, debugExtensions, setErrors, setHeat, setPcLine, toggleBreakpointAtCursor } from './editor';
+import { HELP, wordAt } from './help';
+import { HelpView } from './help/view';
 import { BIOS_PROGRAM, TEST_MAP, TEST_PROGRAM } from './samples';
 import { Session, type StepResult } from './session';
 
@@ -46,6 +48,15 @@ export function startPage(): void {
   /** Breakpoints set in the disassembly at addresses with no source line (the BIOS). */
   const romBreakpoints = new Set<number>();
 
+  const help = new HelpView($<HTMLDialogElement>('help'), HELP);
+  /** F1 in the editor: help on the word under the cursor. */
+  const helpAtCursor = (view: EditorView): boolean => {
+    const pos = view.state.selection.main.head;
+    const line = view.state.doc.lineAt(pos);
+    help.open(HELP.topicFor(wordAt(line.text, pos - line.from)));
+    return true;
+  };
+
   const editor = new EditorView({
     parent: $('editor'),
     state: EditorState.create({
@@ -55,6 +66,7 @@ export function startPage(): void {
         keymap.of([
           { key: 'Mod-Enter', run: () => { run(); return true; } },
           { key: 'F9', run: toggleBreakpointAtCursor },
+          { key: 'F1', run: helpAtCursor },
           ...defaultKeymap, ...historyKeymap]),
         blue11Asm, blue11Highlight, EditorView.theme({}, { dark: true }),
         EditorView.updateListener.of((u) => {
@@ -287,6 +299,13 @@ export function startPage(): void {
   $('show-bios').addEventListener('click', () => dialog.showModal());
   $('close-bios').addEventListener('click', () => dialog.close());
 
-  showStatus('Press Run (Ctrl+Enter) to drive the robot to the exit.');
+  $('show-help').addEventListener('click', () => help.open());
+  window.addEventListener('keydown', (ev) => {
+    if (ev.key !== 'F1' || ev.defaultPrevented) return;
+    ev.preventDefault();
+    if (help.isOpen) $<HTMLDialogElement>('help').close(); else help.open();
+  });
+
+  showStatus('Press Run (Ctrl+Enter) to drive the robot to the exit. F1: help.');
   show();
 }

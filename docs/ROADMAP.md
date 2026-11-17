@@ -12,12 +12,13 @@ step-equals-run world check is in `tests/ui/debug.test.ts`); and monsters (a pat
 chaser and a sentry, each an `Actor` with a 4 KB machine, a motor, a sensor (a laser for the
 sentry) and a behaviour script in
 Blue-11; contact and laser damage, loot; DESIGN.md §6; seeded behaviour checked in
-`tests/core/monsters.test.ts`).
+`tests/core/monsters.test.ts`); and the in-game help (Help / F1, sections, search,
+F1 on the word under the cursor; DESIGN.md §7 "Help").
 
 ## 2. Lessons 0–7
 
-- Lesson data: map, briefing, hints, win condition, reference solution, and the help
-  text for the symbols.
+- Lesson data: map, briefing, hints, win condition, reference solution, and links into the
+  help.
 - Progress saved in `localStorage`.
 - **Done when:** every reference solution passes its lesson in CI.
 

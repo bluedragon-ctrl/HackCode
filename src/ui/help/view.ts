@@ -99,49 +99,7 @@ export class HelpView {
   }
 
   private renderSection(s: Section): void {
-    this.content.replaceChildren(el('h2', undefined, s.title), ...s.blocks.map((b) => this.block(b)));
-  }
-
-  private block(b: Block): HTMLElement {
-    switch (b.kind) {
-      case 'p': return this.inline(el('p'), b.text);
-      case 'h': return this.inline(el('h3'), b.text);
-      case 'note': return this.inline(el('p', 'help-note'), b.text);
-      case 'code': return el('pre', 'help-code', b.text);
-      case 'list': {
-        const ul = el('ul');
-        for (const i of b.items) ul.append(this.inline(el('li'), i));
-        return ul;
-      }
-      case 'table': {
-        const t = el('table', 'help-table');
-        const head = el('tr');
-        for (const c of b.head) head.append(this.inline(el('th'), c));
-        t.append(el('thead'), el('tbody'));
-        t.tHead!.append(head);
-        for (const row of b.rows) {
-          const tr = el('tr');
-          for (const c of row) tr.append(this.inline(el('td'), c));
-          t.tBodies[0].append(tr);
-        }
-        return t;
-      }
-      case 'entries': {
-        const dl = el('dl', 'help-entries');
-        for (const en of b.entries) {
-          const dt = el('dt');
-          dt.id = `help-${en.anchor}`;
-          dt.append(this.inline(el('span', 'term'), en.term));
-          if (en.detail) dt.append(el('span', 'detail', en.detail));
-          dl.append(dt, this.inline(el('dd'), en.text));
-        }
-        return dl;
-      }
-    }
-  }
-
-  private inline<T extends HTMLElement>(into: T, text: string): T {
-    return renderInline(into, text, (t) => this.go(t));
+    this.content.replaceChildren(el('h2', undefined, s.title), ...s.blocks.map((b) => renderBlock(b, (t) => this.go(t))));
   }
 }
 
@@ -161,4 +119,44 @@ export function renderInline<T extends HTMLElement>(into: T, text: string, go: (
     }
   }
   return into;
+}
+
+/** A block of the help's content; a link calls `go`. */
+export function renderBlock(b: Block, go: (t: Topic) => void): HTMLElement {
+  const inline = <T extends HTMLElement>(into: T, text: string): T => renderInline(into, text, go);
+  switch (b.kind) {
+    case 'p': return inline(el('p'), b.text);
+    case 'h': return inline(el('h3'), b.text);
+    case 'note': return inline(el('p', 'help-note'), b.text);
+    case 'code': return el('pre', 'help-code', b.text);
+    case 'list': {
+      const ul = el('ul');
+      for (const i of b.items) ul.append(inline(el('li'), i));
+      return ul;
+    }
+    case 'table': {
+      const t = el('table', 'help-table');
+      const head = el('tr');
+      for (const c of b.head) head.append(inline(el('th'), c));
+      t.append(el('thead'), el('tbody'));
+      t.tHead!.append(head);
+      for (const row of b.rows) {
+        const tr = el('tr');
+        for (const c of row) tr.append(inline(el('td'), c));
+        t.tBodies[0].append(tr);
+      }
+      return t;
+    }
+    case 'entries': {
+      const dl = el('dl', 'help-entries');
+      for (const en of b.entries) {
+        const dt = el('dt');
+        dt.id = `help-${en.anchor}`;
+        dt.append(inline(el('span', 'term'), en.term));
+        if (en.detail) dt.append(el('span', 'detail', en.detail));
+        dl.append(dt, inline(el('dd'), en.text));
+      }
+      return dl;
+    }
+  }
 }

@@ -1,7 +1,7 @@
 /**
- * The game page: the editor, the map, Run / Continue / Pause / Step / Step tick, the
- * robot, CPU and console panels, and the debugger (breakpoints, heat map, disassembly,
- * memory). The simulation runs in whole ticks paced by animation
+ * The game page: the lesson picker and bar, the editor, the map, Run / Continue / Pause /
+ * Step / Step tick, the robot, CPU and console panels, and the debugger (breakpoints,
+ * heat map, disassembly, memory). The simulation runs in whole ticks paced by animation
  * frames; the speed setting is the only use of wall-clock time, and it never reaches the core.
  */
 
@@ -17,8 +17,16 @@ import { breakpointLines, debugExtensions, setErrors, setHeat, setPcLine, toggle
 import { HELP, wordAt } from './help';
 import { helpTooltip } from './help/tooltip';
 import { HelpView } from './help/view';
+import { plain } from './help/model';
+import { LESSONS } from './lessons/lessons';
+import type { Lesson } from './lessons/model';
+import { Progress, type KeyValue } from './lessons/progress';
+import { LessonView } from './lessons/view';
 import { BIOS_PROGRAM, TEST_MAP, TEST_PROGRAM } from './samples';
 import { Session, type StepResult } from './session';
+
+/** The id under which the sandbox (the test map, no lesson) keeps its program. */
+const SANDBOX = 'sandbox';
 
 const HEADINGS = ['N', 'E', 'S', 'W'];
 const REGS = ['R0', 'R1', 'R2', 'R3', 'R4', 'R5', 'SP', 'PC'];
@@ -27,8 +35,16 @@ const MAX_TICKS_PER_FRAME = 50;
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
+function browserStorage(): KeyValue | null {
+  try { return window.localStorage; } catch { return null; }
+}
+
 export function startPage(): void {
-  const session = new Session(TEST_MAP);
+  const progress = new Progress(browserStorage());
+  let session = new Session(TEST_MAP);
+  /** The lesson open, or null in the sandbox. */
+  let lesson: Lesson | null = null;
+  let currentId = SANDBOX;
   const renderer: Renderer = new CanvasRenderer($<HTMLCanvasElement>('map'));
   const status = $<HTMLDivElement>('status');
   const speed = $<HTMLSelectElement>('speed');
@@ -61,7 +77,7 @@ export function startPage(): void {
   const editor = new EditorView({
     parent: $('editor'),
     state: EditorState.create({
-      doc: BIOS_PROGRAM,
+      doc: '',
       extensions: [
         debugExtensions, lineNumbers(), history(), helpTooltip(HELP, (t) => help.open(t)),
         keymap.of([
@@ -71,7 +87,7 @@ export function startPage(): void {
           ...defaultKeymap, ...historyKeymap]),
         blue11Asm, blue11Highlight, EditorView.theme({}, { dark: true }),
         EditorView.updateListener.of((u) => {
-          if (u.docChanged) refreshButtons();
+          if (u.docChanged) { refreshButtons(); progress.saveCode(currentId, source()); }
           // a breakpoint toggled: show it in the disassembly (our own effects are skipped)
           if (!running && u.transactions.some((t) => t.effects.some((e) => !e.is(setHeat) && !e.is(setPcLine) && !e.is(setErrors)))) {
             queueMicrotask(showDebugger);
@@ -194,10 +210,11 @@ export function startPage(): void {
   function report(res: StepResult): boolean {
     switch (res.stop) {
       case 'tick': return true;
-      case 'won': showStatus(`Exit reached in ${octal(session.world.tick)} ticks.`, 'win'); return false;
+      case 'won': won(); return false;
+      case 'failed': showStatus(`${session.failure} Run again to retry.`, 'error'); return false;
       case 'halt': showStatus(`HALT at ${octal(session.world.robot.cpu.r[7] - 2)}.`); return false;
       case 'wait': showStatus('WAIT with nothing to wake the CPU: stopped.', 'error'); return false;
-      case 'destroyed': showStatus('The robot is destroyed. Reset the map to try again.', 'error'); return false;
+      case 'destroyed': showStatus('The robot is destroyed. Run again to retry.', 'error'); return false;
       case 'double-fault': showStatus('Double fault: the CPU stopped. Run again to reboot.', 'error'); return false;
       case 'breakpoint': showStatus(`Breakpoint at ${octal(session.world.robot.cpu.r[7])}.`); return false;
       case 'trap': {
@@ -206,6 +223,17 @@ export function startPage(): void {
         return false;
       }
     }
+  }
+
+  function won(): void {
+    const ticks = octal(session.world.tick);
+    if (!lesson) { showStatus(`Exit reached in ${ticks} ticks.`, 'win'); return; }
+    progress.complete(lesson.id);
+    lessonView.setDone(true);
+    fillPicker();
+    const last = lesson.number === LESSONS.length - 1;
+    showStatus(`Lesson ${lesson.number} complete in ${ticks} ticks!`
+      + (last ? ' That was the last lesson: the sandbox is yours.' : ' On to the next lesson →'), 'win');
   }
 
   function loadEditor(): boolean {
@@ -255,6 +283,11 @@ export function startPage(): void {
     if (loadEditor()) start(false);
   }
 
+  function stop(): void {
+    running = false;
+    cancelAnimationFrame(frame);
+  }
+
   function pause(): void {
     running = false;
     cancelAnimationFrame(frame);
@@ -280,8 +313,7 @@ export function startPage(): void {
   buttons.step.addEventListener('click', () => stepWith(() => session.stepInstruction()));
   buttons.stepTick.addEventListener('click', () => stepWith(() => session.stepTick()));
   buttons.reset.addEventListener('click', () => {
-    running = false;
-    cancelAnimationFrame(frame);
+    stop();
     session.reset();
     showStatus('Map reset.');
     show();
@@ -294,8 +326,47 @@ export function startPage(): void {
   example.addEventListener('change', () => {
     const text = examples[example.value];
     example.value = '';
-    if (text) editor.dispatch({ changes: { from: 0, to: editor.state.doc.length, insert: text } });
+    if (text) setSource(text);
   });
+
+  // ---------------------------------------------------------------- lessons
+
+  function setSource(text: string): void {
+    editor.dispatch({ changes: { from: 0, to: editor.state.doc.length, insert: text }, effects: setErrors.of([]) });
+  }
+
+  const picker = $<HTMLSelectElement>('lesson');
+  function fillPicker(): void {
+    const done = progress.done;
+    picker.replaceChildren(...LESSONS.map((l) => new Option(`${l.number} · ${l.title}${done.has(l.id) ? '  ✓' : ''}`, l.id)),
+      new Option('Sandbox: free play', SANDBOX));
+    picker.value = currentId;
+  }
+  picker.addEventListener('change', () => { openLesson(picker.value); picker.blur(); });
+
+  const lessonView = new LessonView($('lesson-bar'), $<HTMLDialogElement>('briefing'), {
+    help: (t) => help.open(t),
+    solution: () => { if (lesson) setSource(lesson.solution); },
+    starter: () => { if (lesson) setSource(lesson.starter); },
+    next: () => { if (lesson && lesson.number + 1 < LESSONS.length) openLesson(LESSONS[lesson.number + 1].id); },
+  });
+
+  /** Open a lesson (or the sandbox) with its map and the program last written for it. */
+  function openLesson(id: string, briefing = true): void {
+    stop();
+    lesson = LESSONS.find((l) => l.id === id) ?? null;
+    currentId = lesson ? lesson.id : SANDBOX;
+    progress.current = currentId;
+    session = lesson ? new Session(lesson.map, { ...lesson.mapOptions, goal: lesson.goal, rules: lesson.rules }) : new Session(TEST_MAP);
+    romBreakpoints.clear();
+    setSource(progress.code(currentId) ?? (lesson ? lesson.starter : BIOS_PROGRAM));
+    lessonView.show(lesson, progress.done.has(currentId), lesson?.number === LESSONS.length - 1);
+    fillPicker();
+    showStatus(lesson ? `${plain(lesson.goal.text)} Run: Ctrl+Enter. Help: F1.`
+      : 'Press Run (Ctrl+Enter) to drive the robot to the exit. F1: help.');
+    show();
+    if (lesson && briefing) lessonView.brief();
+  }
 
   const dialog = $<HTMLDialogElement>('bios');
   $<HTMLPreElement>('bios-source').textContent = BIOS_SOURCE;
@@ -309,6 +380,7 @@ export function startPage(): void {
     if (help.isOpen) $<HTMLDialogElement>('help').close(); else help.open();
   });
 
-  showStatus('Press Run (Ctrl+Enter) to drive the robot to the exit. F1: help.');
-  show();
+  // First visit: lesson 0 and its briefing. Later: where the player was, briefed only if new to it.
+  const first = progress.current ?? LESSONS[0].id;
+  openLesson(first, progress.code(first) === null);
 }

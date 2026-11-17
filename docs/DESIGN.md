@@ -348,6 +348,32 @@ Lessons start with octal. Decimal literals (`10.`) are used for "human" quantiti
 
 Each lesson: hand-made map, win condition checked by the simulation, hints, reference solution.
 
+Implemented in `src/ui/lessons/` as data (`lessons.ts`), no DOM, so every lesson is tested
+(`tests/ui/lessons.test.ts`): the solution wins, the starter does not, and the mistake a
+lesson is about loses (`MOV #12` stops short in lesson 0, polling misses lesson 7's energy).
+
+- **Lesson:** map, briefing (the help's blocks and markup, linking into its sections),
+  starter program, goal, optional rules, hints (shown one at a time), reference solution.
+- **Goal:** `won(world)` checked after every tick, and `failed(world)` giving a reason the
+  run can no longer win (it stops there; Run starts over). Goals in use: the exit; the exit
+  with all the coins; the exit with at least so much energy.
+- **Rules**, checked when the program is loaded (a broken one is a load error): at most so
+  many words of instructions (data does not count), instructions it must use, instructions
+  it must not use.
+- **Maps and goals:** 0 an L-shaped corridor (12. and 8. cells: write them in octal); 1 stairs
+  of three cells (R0 holds the BIOS result); 2 a spiral, at most 12 words; 3 a corridor north
+  with coins and two sentries, all coins (scan, `BITB` on FLAGS: fire or grab); 4 an open room,
+  find the exit in the scan records and drive there; 5 coins in alcoves, all coins, `JSR` and
+  `RTS`; 6 a U-shaped corridor without `EMT`; 7 a long corridor, reach the exit with at least
+  9750. energy (polling ends near 9580., `WAIT` near 9810.).
+- **Page:** a lesson picker in the header (the lessons, ✓ when done, and the sandbox: the test
+  map); a bar above the map with the goal, the rules, hints and Briefing / Hint / Start over /
+  Solution / Next lesson. The briefing opens when a lesson is opened. The browser keeps (local
+  storage) the lessons done, each lesson's program and the lesson open last; a new player
+  starts at lesson 0.
+- *Later:* several maps (or seeds) per lesson, so that counting cells on the map does not
+  solve lesson 4; scoring a solution (ticks, energy, words).
+
 ### Help
 
 In-game help (`src/ui/help/`): the **Help** button or **F1** opens a dialog with sections
@@ -365,8 +391,8 @@ there.
   costs, ranges and monster stats are read from `src/core` constants.
 - Every example assembles with the prelude, and the runnable ones run on the test map to a
   `HALT` of their own (`tests/ui/help.test.ts`).
-- *Later:* lessons linking into sections, topics hidden until unlocked (EIS until the
-  math chip).
+- Lesson briefings and hints link into its sections.
+- *Later:* topics hidden until unlocked (EIS until the math chip).
 
 ## 8. Expedition (mode 2)
 

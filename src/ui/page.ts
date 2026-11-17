@@ -15,6 +15,7 @@ import { CanvasRenderer, type Renderer } from '../render';
 import { addressNamer, disassemblyAround, lineHeat, memoryRows, parseAddress } from './debug';
 import { breakpointLines, debugExtensions, setErrors, setHeat, setPcLine, toggleBreakpointAtCursor } from './editor';
 import { HELP, wordAt } from './help';
+import { helpTooltip } from './help/tooltip';
 import { HelpView } from './help/view';
 import { BIOS_PROGRAM, TEST_MAP, TEST_PROGRAM } from './samples';
 import { Session, type StepResult } from './session';
@@ -62,7 +63,7 @@ export function startPage(): void {
     state: EditorState.create({
       doc: BIOS_PROGRAM,
       extensions: [
-        debugExtensions, lineNumbers(), history(),
+        debugExtensions, lineNumbers(), history(), helpTooltip(HELP, (t) => help.open(t)),
         keymap.of([
           { key: 'Mod-Enter', run: () => { run(); return true; } },
           { key: 'F9', run: toggleBreakpointAtCursor },

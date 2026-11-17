@@ -118,6 +118,15 @@ export function wordAt(line: string, col: number): string {
   return line.slice(from, to).toUpperCase();
 }
 
+/** Whether `col` is in the line's comment (after a `;` that is not a character constant `';`). */
+export function inComment(line: string, col: number): boolean {
+  for (let i = 0; i < Math.min(col, line.length); i++) {
+    if (line[i] === "'") i++;
+    else if (line[i] === ';') return true;
+  }
+  return false;
+}
+
 export interface SearchHit extends Topic {
   label: string;
   /** Section title, for a hit in an entry. */
@@ -126,7 +135,7 @@ export interface SearchHit extends Topic {
 }
 
 export class HelpIndex {
-  private readonly terms = new Map<string, Topic>();
+  private readonly described = new Map<string, { entry: Entry; section: Section }>();
   private readonly items: Array<SearchHit & { names: string[]; body: string }> = [];
 
   constructor(readonly sections: readonly Section[]) {
@@ -136,7 +145,7 @@ export class HelpIndex {
         body += ' ' + blockTexts(b).map(plain).join(' ');
         if (b.kind !== 'entries') continue;
         for (const e of b.entries) {
-          for (const n of e.names) if (!this.terms.has(n)) this.terms.set(n, { section: s.id, anchor: e.anchor });
+          for (const n of e.names) if (!this.described.has(n)) this.described.set(n, { entry: e, section: s });
           this.items.push({ section: s.id, anchor: e.anchor, label: plain(e.term), where: s.title, score: 0,
             names: e.names, body: `${plain(e.term)} ${plain(e.text)}`.toLowerCase() });
         }
@@ -151,8 +160,14 @@ export class HelpIndex {
 
   /** Where F1 on this name goes (an instruction, a symbol, a directive, a register), or null. */
   topicFor(word: string): Topic | null {
+    const d = this.entryFor(word);
+    return d ? { section: d.section.id, anchor: d.entry.anchor } : null;
+  }
+
+  /** The entry F1 on this name goes to, with its section, for a tooltip; or null. */
+  entryFor(word: string): { entry: Entry; section: Section } | null {
     const w = word.toUpperCase();
-    return this.terms.get(w) ?? this.terms.get(w.replace(/^[#@]+/, '')) ?? null;
+    return this.described.get(w) ?? this.described.get(w.replace(/^[#@]+/, '')) ?? null;
   }
 
   /** Entries named by the query first, then entries and sections that mention every word. */

@@ -76,6 +76,14 @@ dialog.help[open] { display: flex; }
 .help-hits { list-style: none; padding: 0; }
 .help-hits li { padding: 0.2rem 0; display: flex; gap: 1rem; align-items: baseline; }
 .help-hits .where { font-size: 0.78rem; opacity: 0.55; }
+#editor .cm-tooltip:has(.help-tip) { background: var(--panel); color: var(--fg); border: 1px solid var(--accent); border-radius: 4px; box-shadow: 0 0 10px #39d0ff40; }
+.help-tip { max-width: 28rem; padding: 0.35rem 0.6rem; font-family: system-ui, sans-serif; font-size: 0.85rem; line-height: 1.4; }
+.help-tip-head { display: flex; gap: 1rem; align-items: baseline; margin-bottom: 0.2rem; }
+.help-tip-head .term { color: var(--accent); text-decoration: none; }
+.help-tip-head .term:hover { text-decoration: underline; }
+.help-tip-head .detail { font-family: ui-monospace, 'Cascadia Code', 'Fira Code', Menlo, monospace; font-size: 0.75rem; opacity: 0.6; }
+.help-tip code { font-family: ui-monospace, 'Cascadia Code', 'Fira Code', Menlo, monospace; color: #fff; background: #ffffff12; padding: 0 0.2em; border-radius: 3px; }
+.help-tip a { color: var(--accent); }
 @media (max-width: 800px) { .help-body { grid-template-columns: 1fr; } .help-nav { display: none; } }
 #bios-source { max-height: calc(86vh - 4rem); overflow: auto; white-space: pre; }
 

@@ -5,7 +5,7 @@
 
 import { parseInline, type Block, type HelpIndex, type Section, type Topic } from './model';
 
-const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: string): HTMLElementTagNameMap[K] => {
+export const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: string): HTMLElementTagNameMap[K] => {
   const e = document.createElement(tag);
   if (cls) e.className = cls;
   if (text !== undefined) e.textContent = text;
@@ -141,19 +141,24 @@ export class HelpView {
   }
 
   private inline<T extends HTMLElement>(into: T, text: string): T {
-    for (const s of parseInline(text)) {
-      switch (s.kind) {
-        case 'text': into.append(s.text); break;
-        case 'code': into.append(el('code', undefined, s.text)); break;
-        case 'bold': into.append(el('strong', undefined, s.text)); break;
-        case 'link': {
-          const a = el('a', undefined, s.text);
-          a.href = '#';
-          a.addEventListener('click', (ev) => { ev.preventDefault(); this.go({ section: s.section, anchor: s.anchor }); });
-          into.append(a);
-        }
+    return renderInline(into, text, (t) => this.go(t));
+  }
+}
+
+/** Inline markup into `into`; a link calls `go`. */
+export function renderInline<T extends HTMLElement>(into: T, text: string, go: (t: Topic) => void): T {
+  for (const s of parseInline(text)) {
+    switch (s.kind) {
+      case 'text': into.append(s.text); break;
+      case 'code': into.append(el('code', undefined, s.text)); break;
+      case 'bold': into.append(el('strong', undefined, s.text)); break;
+      case 'link': {
+        const a = el('a', undefined, s.text);
+        a.href = '#';
+        a.addEventListener('click', (ev) => { ev.preventDefault(); go({ section: s.section, anchor: s.anchor }); });
+        into.append(a);
       }
     }
-    return into;
   }
+  return into;
 }

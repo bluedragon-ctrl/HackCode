@@ -13,7 +13,7 @@ chaser and a sentry, each an `Actor` with a 4 KB machine, a motor, a sensor (a l
 sentry) and a behaviour script in
 Blue-11; contact and laser damage, loot; DESIGN.md §6; seeded behaviour checked in
 `tests/core/monsters.test.ts`); and the in-game help (Help / F1, sections, search,
-F1 on the word under the cursor; DESIGN.md §7 "Help").
+F1 on the word under the cursor, hover tooltips; DESIGN.md §7 "Help").
 
 ## 2. Lessons 0–7
 

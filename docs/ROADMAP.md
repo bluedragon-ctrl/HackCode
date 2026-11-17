@@ -33,7 +33,8 @@ is the game's side: `src/core/robot.ts`, help, lessons).
 - ~~**Assembler warnings:** a name alone on a line, and `*` or `/` after `+` or `-`
   without `< >`~~ (done, in the library).
 - ~~`docs/BLUE11_CPU.md` banner~~ (it already had one).
-- `TRAP` in the interrupts lesson (lesson 7): writing a handler at 34.
+- ~~`TRAP` in the interrupts lesson (lesson 7): writing a handler at 34~~ (done: the starter's
+  `DRIVE` system call is a `TRAP` with nothing at 34, and it polls; the rules ask for `TRAP`).
 - Kept on purpose: the console's keyboard side (`RCSR RBUF RCVVEC`), for later use.
 
 ## 3. Expedition

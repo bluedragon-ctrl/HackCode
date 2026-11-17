@@ -358,7 +358,7 @@ Lessons start with octal. Decimal literals (`10.`) are used for "human" quantiti
 4. Scanner buffer — iterate records (autoincrement, indexed modes)
 5. Subroutines and the stack (`JSR`, `RTS`)
 6. Raw device registers and polling
-7. Interrupts, `WAIT` (advanced)
+7. Interrupts, `WAIT`, `TRAP` (advanced)
 
 Each lesson: hand-made map, win condition checked by the simulation, hints, reference solution.
 
@@ -379,7 +379,9 @@ lesson is about loses (`MOV #12` stops short in lesson 0, polling misses lesson 
   with coins and two sentries, all coins (scan, `BITB` on FLAGS: fire or grab); 4 an open room,
   find the exit in the scan records and drive there; 5 coins in alcoves, all coins, `JSR` and
   `RTS`; 6 a U-shaped corridor without `EMT`; 7 a long corridor, reach the exit with at least
-  9750. energy (polling ends near 9580., `WAIT` near 9810.).
+  9750. energy (polling ends near 9580., `WAIT` near 9810.), using `TRAP`: the starter's own
+  system call `DRIVE` has no handler at 34 yet and polls; the player installs it (PSW 0, so the
+  wheels can interrupt it) and makes it sleep in `WAIT`.
 - **Page:** a lesson picker in the header (the lessons, ✓ when done, and the sandbox: the test
   map); a bar above the map with the goal, the rules, hints and Briefing / Hint / Start over /
   Solution / Next lesson. The briefing opens when a lesson is opened. The browser keeps (local

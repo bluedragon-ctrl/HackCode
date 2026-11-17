@@ -126,16 +126,32 @@ describe('what the lessons teach', () => {
 
   it(`7: polling reaches the exit with less than ${WAIT_ENERGY}. energy; WAIT with more`, () => {
     const l = byId('interrupts');
-    const poll = play(l, l.starter);
+    const installed = l.starter.replace('        MOV #PATH, R1', '        MOV #DRIVE, @#34\n        CLR @#36\n        MOV #PATH, R1');
+    const poll = play(l, installed);
     expect(poll.r.stop).toBe('failed');
     expect(poll.s.failure).toMatch(/Exit reached with \d+\. energy/);
-    const bios = play(l, 'MOV #14, R0\nEMT MOVE\nEMT RIGHT\nMOV #14, R0\nEMT MOVE\nEMT RIGHT\nMOV #14, R0\nEMT MOVE\nHALT');
+    const bios = play(l, 'MOV #X, @#34\nCLR @#36\nTRAP 0\nMOV #14, R0\nEMT MOVE\nEMT RIGHT\nMOV #14, R0\nEMT MOVE\nEMT RIGHT\nMOV #14, R0\nEMT MOVE\nHALT\nX: RTI');
     expect(bios.r.stop).toBe('failed');
     const wait = play(l, l.solution);
     expect(wait.r.stop).toBe('won');
     // margins both ways, so tuning the costs does not quietly break the lesson
     expect(poll.s.world.robot.energy).toBeLessThan(WAIT_ENERGY - 100);
     expect(wait.s.world.robot.energy).toBeGreaterThan(WAIT_ENERGY + 50);
+  });
+
+  it('7: the starter stops at its TRAP, with no handler at 34', () => {
+    const l = byId('interrupts');
+    const { s, r } = play(l, l.starter);
+    expect(r.stop).toBe('trap');
+    expect(s.world.robot.x).toBe(1);
+    expect(session(l).load(byId('devices').solution)[0].message).toBe('this lesson asks you to use TRAP');
+  });
+
+  it('7: a DRIVE at priority 7 cannot be woken by the wheels', () => {
+    const l = byId('interrupts');
+    const { s, r } = play(l, l.solution.replace('CLR @#36', 'MOV #340, @#36'));
+    expect(r.stop).toBe('wait'); // the first leg is driven, its interrupt never taken
+    expect([s.world.robot.x, s.world.robot.y]).toEqual([13, 1]);
   });
 });
 

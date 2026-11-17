@@ -18,7 +18,34 @@ object, the dock device and `EMT CHARGE`; DESIGN.md §5); and lessons 0–7 (map
 with links into the help, starter, goal, rules, hints and reference solution; progress in
 `localStorage`; DESIGN.md §7; every solution wins in `tests/ui/lessons.test.ts`).
 
-## 2. Expedition
+## 2. Blue-11 for players
+
+Trim what has no job in the game and would only confuse (the library stays complete; this
+is the game's side: `src/core/robot.ts`, help, lessons).
+
+- **Faults are reported, not a HALT at 0.** No vector is installed but EMT's, so today an
+  odd address, a bus error or an illegal instruction (also `MUL` before the math chip)
+  jumps through an empty vector to address 0 and shows "HALT at 000000". Stop on
+  `odd-address`, `bus-error` and `illegal` while the program has not installed a handler
+  (vector word 0), and show the cause, the PC and the registers (DESIGN.md §3 "Crash").
+- **`BPT` is a breakpoint:** stop on it and show "Breakpoint at …", like the debugger's.
+- **Hide from the help** (they still assemble): `IOT`, `RTT`, `RESET`, and the flag
+  operations other than `CLC` / `SEC` (`CLV CLZ CLN CCC SEV SEZ SEN SCC`, `CLC!CLV`).
+  `TRAP` only in the interrupts lesson; `ADC SBC ASHC` under "advanced".
+- **One name per branch:** `BHIS` / `BLO` in the BIOS, lessons and help; the help says
+  "`BCC`: same as `BHIS`".
+- **Assembler warnings** (general, in the library): a lone symbol on a line (a label that
+  lost its colon becomes an implicit `.WORD`), and `*` or `/` after `+` or `-` without
+  `< >` (strict left-to-right evaluation).
+- **The help leaves out** the ignored listing directives (`.TITLE .SBTTL .IDENT .ENABL
+  .DSABL .LIST .NLIST .PAGE`), `LABEL::`, `NAME ==`, `"AB` and instruction names as values.
+- **`docs/BLUE11_CPU.md`** gets a banner: historical (the Rover design: `PRGCS` gate,
+  2 KB core, 64 cycles); the machine as built is DESIGN.md §4.
+- Kept on purpose: the console's keyboard side (`RCSR RBUF RCVVEC`), for later use.
+- **Done when:** a test shows each fault, `BPT` and `MUL` without EIS stop with their
+  cause.
+
+## 3. Expedition
 
 - ~~A seeded BSP dungeon generator, a reachability check, difficulty that rises with depth,
   and chargers placed in the generated maps~~ (done: `src/core/dungeon.ts`, DESIGN.md §8).
@@ -28,7 +55,7 @@ with links into the help, starter, goal, rules, hints and reference solution; pr
 
 ## Later
 
-Scoring (ticks, energy, coins), a probe device for hacking monsters, kernel/user modes,
+Scoring (ticks, energy, coins), keyboard input on the console (`RCSR`, `RBUF`), a probe device for hacking monsters, kernel/user modes,
 more monster kinds with other behaviours, cyberpunk effects (a glitch burst on damage, a
 reticle when the sentry fires, scanlines over the map), more upgrades, and tuning of timings and costs
 from play.

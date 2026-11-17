@@ -140,7 +140,8 @@ export function startPage(): void {
     const flags = ['N', 'Z', 'V', 'C'].map((f, i) => (psw & (8 >> i) ? f : '-')).join('');
     $<HTMLPreElement>('regs').textContent = REGS.map((n, i) => `${n.padEnd(3)} ${octal(cpu.r[i])}`).join('\n')
       + `\nPSW ${octal(psw)} ${flags}` + (cpu.halted ? '\nHALTED' : cpu.waiting ? '\nWAIT' : '');
-    $<HTMLPreElement>('output').textContent = r.console.output;
+    const out = $<HTMLPreElement>('output');
+    if (out.textContent !== r.console.output) out.textContent = r.console.output;
     showDebugger();
     refreshButtons();
   }

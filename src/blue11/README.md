@@ -199,11 +199,11 @@ const r = cpu.run(1000);                           // { reason: 'halt', … }; R
 
 | Member | |
 | :--- | :--- |
-| `run(maxCycles, breakpoints?, resume = true): RunResult` | runs until a stop (below). May overshoot `maxCycles` by one instruction. `breakpoints`: stop *before* an instruction at one of these addresses; with `resume`, a breakpoint at the current PC is passed first so "continue" works |
+| `run(maxCycles, breakpoints?, resume = true): RunResult` | runs until a stop (below). May overshoot `maxCycles` by one instruction. `breakpoints`: stop *before* an instruction at one of these addresses; with `resume`, a breakpoint at the current PC is passed first so "continue" works (only that first time: once an instruction ran or an interrupt was taken, breakpoints count again, even at the same address) |
 | `step(): RunResult` | one instruction, or the pending interrupt. A normal step reports reason `'budget'` |
 | `interrupt(vector, level)` | request an interrupt; taken between instructions once `level` > PSW priority (bits 7–5). One-shot: removed when taken; a new request for the same vector replaces the old one |
 | `cancelInterrupt(vector)` | withdraw a pending request |
-| `onTrap: (t: TrapInfo) => 'vector' \| 'stop'` | called before every trap *and interrupt*. `'stop'`: `run` returns reason `'trap'` and the host handles it. A fault leaves the PC at the faulting instruction; `EMT`/`TRAP`/`BPT`/`IOT` leave it after; an interrupt stays pending (and a `WAIT` waiting), so the next `run` stops on it again unless the host clears it |
+| `onTrap: (t: TrapInfo) => 'vector' \| 'stop'` | called before every trap *and interrupt*. `'stop'`: `run` returns reason `'trap'` and the host handles it. A fault leaves the PC at the faulting instruction; `EMT`/`TRAP`/`BPT`/`IOT` leave it after; an interrupt stays pending (and a `WAIT` waiting), so the next `run` stops on it again unless the host clears it. For an interrupt it is asked while the request is still pending: a request the callback withdraws (`cancelInterrupt`) or replaces is not taken |
 | `onInstruction: (pc, opcode) => void` | every instruction once fetched, before it runs. Not called for a fetch that faults or for interrupts |
 | `onModeChange: (mode, old) => void` | PSW bits 15–14 changed (trap, `RTI`, PSW write) |
 | `stackLimit` | a push through SP below this address traps to 4 before writing (cause `'stack-limit'`); 0 = off |
@@ -360,10 +360,11 @@ DONE:   MOV @#RFDST, R0
     const r = m.run(10_000);    // reason 'halt', R0 = 42 (octal), m.cycles ≈ 200 + a few
 ```
 
-**Included DEC devices.** `new DL11({ base?, vector?, level? })`: serial line, default
+**Included DEC devices.** `new DL11({ base?, vector?, level?, maxOutput? })`: serial line, default
 the console at `177560` (RCSR, RBUF, XCSR, XBUF), vectors 60 (receive) and 64 (transmit),
-level 4. `type(ch)` queues input, `output` collects what the program sent, `onOutput(ch)`
-is called per character; the transmitter is always ready. `new KW11L(cycles = 1000)`:
+level 4. `type(ch)` queues input, `output` collects what the program sent (only the last
+`maxOutput` characters, if given), `onOutput(ch)` is called per character; the transmitter
+is always ready. A receive request is withdrawn when IE is cleared or RBUF is read. `new KW11L(cycles = 1000)`:
 line clock LKS at `177546`, vector 100, level 6; sets DONE every `cycles` CPU cycles and
 interrupts if IE. CSR bits: `CSR.DONE` (200), `CSR.IE` (100).
 

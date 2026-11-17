@@ -1,7 +1,7 @@
 /** The robot machine's memory map and options (DESIGN.md §4). */
 import { describe, expect, it } from 'vitest';
 import { BUS_ERROR } from '../../src/blue11';
-import { MEMORY, REG, TICK_CYCLES, VECTOR } from '../../src/core';
+import { CONSOLE_KEEP, MEMORY, REG, TICK_CYCLES, VECTOR } from '../../src/core';
 import { asm, load, world } from './helpers';
 
 describe('robot memory map', () => {
@@ -134,5 +134,16 @@ CLK:    INC R0
     expect(cpu.psw).toBe(0);
     expect(cpu.r[7]).toBe(0o1000);
     expect(cpu.r[6]).toBe(0o1000);
+  });
+
+  it('WAIT with only the console receiver enabled ends the run: nobody types on it', () => {
+    const w = load(' MOV #100, @#177560\n WAIT');
+    expect(w.runTick().reason).toBe('wait');
+  });
+
+  it('the console keeps the last CONSOLE_KEEP characters', () => {
+    const w = load("1$: MOVB #'A, @#177566\n BR 1$");
+    w.run(400);
+    expect(w.robot.console.output.length).toBe(CONSOLE_KEEP);
   });
 });

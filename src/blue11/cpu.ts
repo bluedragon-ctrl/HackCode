@@ -166,20 +166,25 @@ export class Cpu {
   run(maxCycles: number, breakpoints?: ReadonlySet<number>, resume = true): RunResult {
     let cycles = 0;
     let instructions = 0;
+    // A breakpoint at the PC we resume from is passed; once the PC has moved on (an
+    // instruction ran, or an interrupt was taken), every breakpoint counts.
+    let armed = !resume;
     while (true) {
       if (this.halted) return { reason: 'halt', cycles, instructions };
       const taken = this.takeInterrupt();
       if (taken.stop) return { reason: 'trap', cycles: cycles + taken.cycles, instructions, trap: taken.stop };
+      if (taken.cycles > 0) armed = true;
       cycles += taken.cycles;
       if (taken.fault) return { reason: 'double-fault', cycles, instructions, trap: taken.fault };
       if (this.waiting) return { reason: 'wait', cycles, instructions };
       if (cycles >= maxCycles) return { reason: 'budget', cycles, instructions };
-      if (breakpoints && (instructions > 0 || !resume) && breakpoints.has(this.r[PC])) {
+      if (breakpoints && armed && breakpoints.has(this.r[PC])) {
         return { reason: 'breakpoint', cycles, instructions };
       }
       const s = this.execute();
       cycles += s.cycles;
       instructions++;
+      armed = true;
       if (s.reason) return { reason: s.reason, cycles, instructions, trap: s.trap };
     }
   }
@@ -399,22 +404,25 @@ export class Cpu {
     }
     if (best < 0) return { cycles: 0 };
     const p = this.pending[best];
-    const wasWaiting = this.waiting;
-    this.pending.splice(best, 1);
+    const t: TrapInfo = { vector: p.vector, cause: 'interrupt', pc: this.r[PC] };
+    // Ask the host while the request is still pending: if it takes the interrupt itself,
+    // the request and the CPU stay as they are (or as the host changed them), so the next
+    // run stops on it again instead of going on as if it had been served.
+    if (this.onTrap && this.onTrap(t) === 'stop') return { cycles: 0, stop: t };
+    // The host may have withdrawn or replaced the request meanwhile: then it is not taken.
+    if (!this.pending.includes(p)) return { cycles: 0 };
+    this.pending = this.pending.filter((q) => q !== p);
     this.waiting = false;
     this.cyc = 0;
-    const t: TrapInfo = { vector: p.vector, cause: 'interrupt', pc: this.r[PC] };
+    const saved = this.onTrap;
+    this.onTrap = null; // already asked
     try {
-      if (this.enter(t) === 'stop') {
-        // The host takes it: leave the request pending and the CPU as it was, so the
-        // next run stops on it again instead of going on as if it had been served.
-        this.pending.splice(best, 0, p);
-        this.waiting = wasWaiting;
-        return { cycles: this.cyc, stop: t };
-      }
+      this.enter(t);
     } catch (e) {
       if (e instanceof DoubleFault) { this.halted = true; return { cycles: this.cyc, fault: e.trap }; }
       throw e;
+    } finally {
+      this.onTrap = saved;
     }
     return { cycles: this.cycleModel === 'flat' ? 1 : this.cyc };
   }

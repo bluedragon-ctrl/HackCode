@@ -93,4 +93,11 @@ describe('expedition', () => {
     expect(() => new Expedition(-1)).toThrow(/seed/);
     expect(() => new Expedition(SEED_MAX + 1)).toThrow(/seed/);
   });
+
+  it('a kept state beyond what the robot can hold is brought within it', () => {
+    const e = Expedition.restore({ seed: 1, depth: 2, ticks: 0, carried: { coins: 999999, hp: 9999, energy: 999999 } })!;
+    expect(e.carried).toEqual({ coins: 0xffff, hp: ROBOT_HP, energy: ENERGY_MAX });
+    const w = e.session().world.robot;
+    expect([w.hp, w.energy, w.coins]).toEqual([ROBOT_HP, ENERGY_MAX, 0xffff]);
+  });
 });

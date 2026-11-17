@@ -200,6 +200,8 @@ export interface DL11Options {
   vector?: number;
   /** Bus request level. Default 4. */
   level?: number;
+  /** Keep only this many of the last characters sent in `output` (default: all). */
+  maxOutput?: number;
 }
 
 /**
@@ -212,7 +214,8 @@ export class DL11 implements Device {
   readonly size = 8;
   readonly vector: number;
   readonly level: number;
-  /** Everything the program sent. */
+  readonly maxOutput: number;
+  /** Everything the program sent (the last {@link DL11Options.maxOutput} characters). */
   output = '';
   /** Characters typed but not yet read by the program. */
   input: number[] = [];
@@ -228,6 +231,8 @@ export class DL11 implements Device {
     this.base = opts.base ?? 0o177560;
     this.vector = opts.vector ?? 0o060;
     this.level = opts.level ?? 4;
+    this.maxOutput = opts.maxOutput ?? Infinity;
+    if (!(this.maxOutput >= 1)) throw new Error('DL11: maxOutput must be at least 1');
   }
 
   attach(cpu: Cpu): void { this.cpu = cpu; }
@@ -244,6 +249,7 @@ export class DL11 implements Device {
       case 2: {
         const v = this.rbuf;
         this.rcsr &= ~CSR.DONE;
+        this.cpu.cancelInterrupt(this.vector); // the request goes with DONE
         this.feed();
         return v;
       }
@@ -258,6 +264,7 @@ export class DL11 implements Device {
       case 0:
         this.rcsr = (this.rcsr & ~CSR.IE) | (value & CSR.IE);
         if ((this.rcsr & CSR.IE) && (this.rcsr & CSR.DONE)) this.cpu.interrupt(this.vector, this.level);
+        else this.cpu.cancelInterrupt(this.vector);
         return true;
       case 2: return true;
       case 4:
@@ -268,6 +275,7 @@ export class DL11 implements Device {
       default: {
         const ch = String.fromCharCode(value & 0x7f);
         this.output += ch;
+        if (this.output.length > this.maxOutput) this.output = this.output.slice(-this.maxOutput);
         this.onOutput?.(ch);
         // The character is sent at once: ready again, and an interrupt if enabled.
         if (this.xcsr & CSR.IE) this.cpu.interrupt(this.vector + 4, this.level);

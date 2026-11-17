@@ -113,4 +113,13 @@ describe('session', () => {
     expect([s.world.robot.x, s.world.robot.y]).toEqual([1, 1]);
     expect(s.isLoaded).toBe(false);
   });
+
+  it('reset clears the heat map', () => {
+    const s = new Session(TEST_MAP);
+    expect(s.load(BIOS_PROGRAM)).toEqual([]);
+    s.run(5);
+    expect(s.heat.some((n) => n > 0)).toBe(true);
+    s.reset();
+    expect(s.heat.every((n) => n === 0)).toBe(true);
+  });
 });

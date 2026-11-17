@@ -154,7 +154,7 @@ The player works console-style: short snippets first, automating more over time.
 | `176400–176507` | robot devices (§5) |
 | `176510–176551` | upgrade devices, present once bought (§8 "Upgrades") |
 | `177546` | KW11-L line clock, vector 100: ticks once per game tick of CPU time (200 cycles) |
-| `177560–177566` | DL11 console (debug printing), vectors 60 / 64 |
+| `177560–177566` | DL11 console (debug printing), vectors 60 / 64; output-only (nobody types, so its receiver never wakes a `WAIT`); the last 4096 characters are kept |
 
 Everything else in `160000–177777` is a hole (bus error, trap to 4).
 
@@ -438,6 +438,8 @@ of one expedition differs. The world's seed (monsters' random numbers) comes fro
 - **Reachability check** (`checkLevel(world)`): from the robot, over cells whose occupant is
   not solid or is a monster, the one exit and every coin can be reached, and every charger has
   a reachable cell beside it to dock from. `tests/core/dungeon.test.ts` checks 1000 seeds.
+  `generateLevel` runs it too: a level that fails is made again from a seed mixed with the
+  attempt number (deterministic; none of the tested seeds needs it).
 - **In the page** (`src/ui/expedition.ts`, "Expedition" in the picker): a seed of up to six
   octal digits (typed, or a random one for a new expedition; chance is used only in the page,
   never in the simulation), depth 1 first. The same program runs on every level: at the exit

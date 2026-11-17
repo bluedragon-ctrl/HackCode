@@ -1,4 +1,4 @@
-/** A Canvas 2D renderer in the neon vector look: walls, floor items, monsters and the robot. */
+/** A Canvas 2D renderer in a neon, cyberpunk vector look: walls, floor items, monsters and the robot. */
 
 import { DX, DY, lootAmount, Monster, monsterKind, TYPE, type ObjectRecord, type World } from '../core';
 import type { Renderer } from './index';
@@ -11,11 +11,14 @@ const COLOR = {
   exit: '#4dff9a',
   coin: '#ffd23f',
   chip: '#ff4dd2',
-  robot: '#39d0ff',
+  robot: '#00f0ff',
   dead: '#ff5a5a',
-  patrol: '#ff8a3d',
-  chaser: '#ff3d6e',
-  sentry: '#c77dff',
+  patrol: '#ffb000',
+  chaser: '#ff2a5f',
+  sentry: '#b36bff',
+  /** The offset copies behind sprites (the colour split). */
+  ghostCyan: '#00f0ff',
+  ghostMagenta: '#ff2bd6',
   unknown: '#ff8a3d',
 };
 
@@ -64,9 +67,9 @@ export class CanvasRenderer implements Renderer {
         const floor = g.get('floor', x, y);
         if (floor.type) this.floorItem(floor, px, py, cell);
         const occ = g.get('occupant', x, y);
-        if (occ.type === TYPE.ROBOT) this.robot(world, px, py, cell);
+        if (occ.type === TYPE.ROBOT) this.robot(world, x, y, cell);
         else if (monsterKind(occ.type)) {
-          this.monster(occ, headings.get(y * g.width + x) ?? 0, px, py, cell);
+          this.monster(occ, headings.get(y * g.width + x) ?? 0, world, x, y, cell);
         } else if (occ.type) this.occupant(occ, px, py, cell);
       }
     }
@@ -137,46 +140,55 @@ export class CanvasRenderer implements Renderer {
     ctx.restore();
   }
 
-  /**
-   * A patrol is a square, a chaser a spiked diamond, both with a bar on the side they
-   * face; a sentry is a circle with a gun barrel pointing the way it faces.
-   */
-  private monster(o: ObjectRecord, heading: number, px: number, py: number, s: number): void {
-    const ctx = this.ctx;
+  /** A monster's sprite in its kind's color; hurt monsters dim with their HP. */
+  private monster(o: ObjectRecord, heading: number, world: World, x: number, y: number, s: number): void {
     const kind = monsterKind(o.type);
-    const color = o.type === TYPE.CHASER ? COLOR.chaser : o.type === TYPE.SENTRY ? COLOR.sentry : COLOR.patrol;
-    const cx = px + s / 2, cy = py + s / 2, r = s * 0.3;
-    const dx = DX[heading], dy = DY[heading];
+    const [sprite, color] =
+      o.type === TYPE.CHASER ? [sprites().chaser, COLOR.chaser]
+      : o.type === TYPE.SENTRY ? [sprites().sentry, COLOR.sentry]
+      : [sprites().patrol, COLOR.patrol];
+    const alpha = 0.45 + 0.55 * Math.min(1, o.hp / (kind?.hp ?? 255));
+    this.sprite(sprite, color, COLOR.ghostCyan, heading, alpha, glitch(world, x, y), x * s, y * s, s);
+  }
+
+  /**
+   * Draws a sprite (authored facing east in a 40Ă—40 box) rotated to the heading, with a
+   * faint offset copy in the ghost color behind it â€” the colour-split look. `glitchy`
+   * widens the split for a tick.
+   */
+  private sprite(sprite: Sprite, color: string, ghost: string | null, heading: number,
+    alpha: number, glitchy: boolean, px: number, py: number, s: number): void {
+    const ctx = this.ctx;
+    const k = s / SPRITE_BOX;
+    const detail = s >= DETAIL_CELL;
     ctx.save();
-    this.glow(color, 10);
-    ctx.strokeStyle = color;
-    ctx.fillStyle = color;
-    ctx.lineWidth = 2;
-    // Hurt monsters dim with their HP.
-    ctx.globalAlpha = 0.45 + 0.55 * Math.min(1, o.hp / (kind?.hp ?? 255));
-    ctx.beginPath();
-    switch (o.type) {
-      case TYPE.CHASER:
-        for (let i = 0; i < 8; i++) {
-          const a = (i * Math.PI) / 4, k = i % 2 ? 0.55 : 1;
-          ctx.lineTo(cx + Math.sin(a) * r * k * 1.15, cy - Math.cos(a) * r * k * 1.15);
-        }
-        ctx.closePath();
-        break;
-      case TYPE.SENTRY:
-        ctx.arc(cx, cy, r * 0.8, 0, 2 * Math.PI);
-        ctx.moveTo(cx + dx * r * 0.8, cy + dy * r * 0.8);
-        ctx.lineTo(cx + dx * r * 1.5, cy + dy * r * 1.5);
-        break;
-      default:
-        ctx.rect(cx - r, cy - r, 2 * r, 2 * r);
+    ctx.translate(px + s / 2, py + s / 2);
+    ctx.rotate(Math.atan2(DY[heading], DX[heading]));
+    ctx.scale(k, k);
+    ctx.translate(-SPRITE_BOX / 2, -SPRITE_BOX / 2);
+    ctx.lineWidth = (detail ? 1.6 : 2) / k;
+    ctx.lineCap = 'square';
+    ctx.lineJoin = 'miter';
+    const pass = (c: string, a: number, dx: number, dy: number, blur: number): void => {
+      ctx.save();
+      ctx.globalAlpha = a;
+      ctx.translate(dx, dy);
+      ctx.strokeStyle = c;
+      ctx.fillStyle = c;
+      this.glow(c, blur);
+      for (const part of sprite) {
+        if (part.detail && !detail) continue;
+        ctx.setLineDash(part.dash ? [1.5, 2] : []);
+        if (part.fill) ctx.fill(part.path);
+        else ctx.stroke(part.path);
+      }
+      ctx.restore();
+    };
+    if (ghost) {
+      const off = glitchy ? 2.4 : 0.9;
+      pass(ghost, alpha * (glitchy ? 0.7 : 0.45), -off, glitchy ? off * 0.5 : 0, 0);
     }
-    ctx.stroke();
-    if (o.type !== TYPE.SENTRY) {
-      // Facing: a bar on that side.
-      ctx.fillRect(cx + dx * r * 0.75 - (dy ? r * 0.5 : 1.5), cy + dy * r * 0.75 - (dx ? r * 0.5 : 1.5),
-        dy ? r : 3, dx ? r : 3);
-    }
+    pass(color, alpha, 0, 0, 10);
     ctx.restore();
   }
 
@@ -192,28 +204,74 @@ export class CanvasRenderer implements Renderer {
     ctx.stroke();
   }
 
-  private robot(world: World, px: number, py: number, s: number): void {
-    const ctx = this.ctx;
+  /** The robot: an armoured chassis with its visor on the side it faces; red when destroyed. */
+  private robot(world: World, x: number, y: number, s: number): void {
     const r = world.robot;
-    const color = r.destroyed ? COLOR.dead : COLOR.robot;
-    const cx = px + s / 2, cy = py + s / 2;
-    const dx = DX[r.heading], dy = DY[r.heading];
-    ctx.save();
-    this.glow(color, 12);
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(cx, cy, s * 0.32, 0, 2 * Math.PI);
-    ctx.stroke();
-    // Heading: a triangle pointing the way the robot faces.
-    const tip = s * 0.3, base = s * 0.14;
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.moveTo(cx + dx * tip, cy + dy * tip);
-    ctx.lineTo(cx - dy * base - dx * base * 0.6, cy + dx * base - dy * base * 0.6);
-    ctx.lineTo(cx + dy * base - dx * base * 0.6, cy - dx * base - dy * base * 0.6);
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
+    if (r.destroyed) {
+      this.sprite(sprites().robot, COLOR.dead, null, r.heading, 0.8, false, x * s, y * s, s);
+    } else {
+      this.sprite(sprites().robot, COLOR.robot, COLOR.ghostMagenta, r.heading, 1, glitch(world, x, y),
+        x * s, y * s, s);
+    }
   }
+}
+
+/** One stroke (or fill) of a sprite; `detail` parts are dropped in small cells. */
+interface SpritePart { path: Path2D; fill?: boolean; dash?: boolean; detail?: boolean }
+type Sprite = SpritePart[];
+
+/** Sprites are authored in a 40Ă—40 box facing east (+x). */
+const SPRITE_BOX = 40;
+/** Cells smaller than this (in CSS px) get the simplified sprites. */
+const DETAIL_CELL = 24;
+
+type PartSpec = [d: string, opts?: Omit<SpritePart, 'path'>];
+const FILL = { fill: true }, DETAIL = { detail: true }, DASH = { dash: true, detail: true };
+
+const SPRITE_SPECS: Record<'robot' | 'patrol' | 'chaser' | 'sentry', PartSpec[]> = {
+  // Armoured chassis, side fins, circuit traces, a solid wedge visor ahead.
+  robot: [
+    ['M10 8 L26 8 L32 14 L32 26 L26 32 L10 32 L6 28 L6 12 Z'],
+    ['M3 12 L3 28 M36 16 L36 24'],
+    ['M22 14 L30 17 L30 23 L22 26 Z', FILL],
+    ['M10 14 L16 14 L18 16 M10 26 L16 26 L18 24 M10 20 L18 20', DETAIL],
+  ],
+  // Surveillance quad drone: diamond core, four rotors, a dashed scan cone ahead.
+  patrol: [
+    ['M20 10 L30 20 L20 30 L10 20 Z'],
+    ['M13 9 A4 4 0 1 1 5 9 A4 4 0 1 1 13 9 M13 31 A4 4 0 1 1 5 31 A4 4 0 1 1 13 31 '
+      + 'M35 9 A4 4 0 1 1 27 9 A4 4 0 1 1 35 9 M35 31 A4 4 0 1 1 27 31 A4 4 0 1 1 35 31'],
+    ['M12 12 L15 15 M12 28 L15 25 M28 12 L25 15 M28 28 L25 25', DETAIL],
+    ['M20 17 L24 20 L20 23 Z', FILL],
+    ['M31 20 L38 16 M31 20 L38 24', DASH],
+  ],
+  // Mech spider: hex body, head with twin optics, jointed legs (four of them when small).
+  chaser: [
+    ['M14 15 L22 15 L26 20 L22 25 L14 25 L11 20 Z'],
+    ['M26 17 L31 18 L33 20 L31 22 L26 23'],
+    ['M28 18 h2 v1.5 h-2 Z M28 20.5 h2 v1.5 h-2 Z', FILL],
+    ['M22 15 L27 8 L34 6 M15 15 L10 8 L5 7 M22 25 L27 32 L34 34 M15 25 L10 32 L5 33'],
+    ['M18 15 L19 6 L15 2 M12 17 L5 14 L2 16 M18 25 L19 34 L15 38 M12 23 L5 26 L2 24', DETAIL],
+  ],
+  // ICE turret: octagon base with targeting brackets, a railgun barrel ahead.
+  sentry: [
+    ['M14 6 L26 6 L34 14 L34 26 L26 34 L14 34 L6 26 L6 14 Z'],
+    ['M14 13 L26 13 L27 20 L26 27 L14 27 L12 20 Z'],
+    ['M26 18 L39 18 L39 22 L26 22 Z', FILL],
+    ['M19 17.5 A2.5 2.5 0 1 1 19 22.5 A2.5 2.5 0 1 1 19 17.5 Z', FILL],
+    ['M5 5 L10 5 M5 5 L5 10 M35 35 L30 35 M35 35 L35 30', DETAIL],
+  ],
+};
+
+/** Path2D is built on first use, so this module still loads where there is no canvas. */
+let built: Record<keyof typeof SPRITE_SPECS, Sprite> | null = null;
+function sprites(): Record<keyof typeof SPRITE_SPECS, Sprite> {
+  built ??= Object.fromEntries(Object.entries(SPRITE_SPECS).map(([k, parts]) =>
+    [k, parts.map(([d, opts]) => ({ path: new Path2D(d), ...opts }))])) as Record<keyof typeof SPRITE_SPECS, Sprite>;
+  return built;
+}
+
+/** A brief, deterministic colour-split glitch: each actor flickers on its own beat. */
+function glitch(world: World, x: number, y: number): boolean {
+  return (world.tick + x * 5 + y * 3) % 13 === 0;
 }

@@ -580,15 +580,26 @@ const interruptsLesson: Lesson = {
 ###############
 `,
   goal: exitWithEnergy(WAIT_ENERGY),
+  rules: { uses: ['TRAP'] },
   briefing: [
-    p(`Thinking costs energy: every instruction the CPU executes uses a little, and a polling loop executes about a `
-      + `hundred of them every tick, doing nothing. Driving costs ${COST.MOVE} a cell. The robot starts with `
+    p('This program drives with a **system call of its own**, `DRIVE`. `EMT` calls the BIOS; `TRAP` is the same '
+      + 'kind of instruction, left for you: the CPU pushes PSW and PC and jumps through the **vector at 34**: the '
+      + 'handler\'s address at 34, its PSW at 36. The handler ends with `RTI`, which pops them: the program goes on '
+      + 'after the `TRAP`. Nothing is installed at 34 yet, so the starter stops at its first `TRAP`. See [traps](traps).'),
+    code(`
+              MOV #DRIVE, @#34            ; the handler
+              CLR @#36                    ; its PSW: priority 0
+              TRAP 0                      ; call it
+              HALT
+      DRIVE:  RTI                         ; back after the TRAP
+    `),
+    p(`Thinking costs energy: every instruction the CPU executes uses a little, and \`DRIVE\`'s polling loop executes `
+      + `about a hundred of them every tick, doing nothing. Driving costs ${COST.MOVE} a cell. The robot starts with `
       + `${dec(ENERGY_MAX)} energy; this time it must reach the exit with at least **${dec(WAIT_ENERGY)}**. `
       + `(A charger gives ${dec(CHARGE_RATE)} a tick, but there is none here.)`),
     p('The cure: start the device with **IE** (interrupt enable, `CS.IE`) set, and **WAIT**. The CPU sleeps, almost '
-      + 'for free, until a device interrupts. When the wheels are done they interrupt: the CPU pushes PSW and PC, and '
-      + 'jumps to the address in the wheels\' **vector** `WHLVEC`. The handler ends with `RTI`, which pops them: '
-      + 'the program goes on after its `WAIT`. See [interrupts](interrupts).'),
+      + 'for free, until a device interrupts. When the wheels are done they interrupt, through their own vector '
+      + '`WHLVEC`, the same way as a trap. See [interrupts](interrupts).'),
     code(`
               MOV #DONE, @#WHLVEC         ; where the interrupt goes
               MOV #340, @#WHLVEC+2        ; the handler's PSW: priority 7
@@ -597,49 +608,63 @@ const interruptsLesson: Lesson = {
               HALT
       DONE:   RTI                         ; back after the WAIT
     `),
-    note('A WAIT with no device busy and IE set would sleep forever: the game stops it and tells you.'),
+    note('The wheels interrupt at priority 4, and only when the CPU runs below it. `DRIVE` runs with the PSW at 36: '
+      + 'keep it 0, so the wheels can wake a `WAIT` inside it. At 340 they cannot: the first leg ends with '
+      + '*WAIT with nothing to wake the CPU*.'),
     h('Your task'),
-    p('The starter program polls, as in lesson 6. Make it sleep instead, and reach the exit with the energy to spare.'),
+    p('Install `DRIVE` at 34, then make it sleep instead of poll, and reach the exit with the energy to spare. '
+      + 'Keep the `TRAP`.'),
   ],
   starter: `; Lesson 7: drive to the exit without wasting energy.
-; This program polls: it works, but it burns energy while it waits.
+; DRIVE is a system call of our own: TRAP jumps through the vector at 34.
+; Two things to do: install DRIVE at 34, then make it sleep instead of poll.
 
         MOV #PATH, R1
 NEXT:   MOV (R1)+, R0       ; cells to go
         BEQ DONE
-        MOV R0, @#WHLCNT
-        MOV (R1)+, R0       ; function
-        BIS #CS.GO, R0
-        MOV R0, @#WHLCSR    ; start the wheels
-POLL:   TSTB @#WHLCSR       ; READY yet?
-        BPL POLL
+        MOV (R1)+, R2       ; function
+        TRAP 0              ; DRIVE: R0 cells, R2 function
         BR NEXT
 DONE:   HALT
+
+; DRIVE: drive R0 cells with function R2. Called by TRAP, so it ends with RTI.
+DRIVE:  MOV R0, @#WHLCNT
+        BIS #CS.GO, R2
+        MOV R2, @#WHLCSR    ; start the wheels
+POLL:   TSTB @#WHLCSR       ; READY yet?
+        BPL POLL
+        RTI
 
 PATH:   .WORD 14, WH.FWD, 1, WH.RGT, 14, WH.FWD, 1, WH.RGT, 14, WH.FWD, 0
 `,
   hints: [
-    'First set the vector: `MOV #ISR, @#WHLVEC` and `MOV #340, @#WHLVEC+2`, with `ISR: RTI` at the end.',
-    'Start the wheels with `CS.GO!CS.IE`: `BIS #CS.GO!CS.IE, R0`.',
-    'Replace the polling loop by a single `WAIT`.',
+    'Install the trap handler first: `MOV #DRIVE, @#34` and `CLR @#36`. Run it: it works, but with too little energy left.',
+    'For the wheels\' interrupt: `MOV #ISR, @#WHLVEC` and `MOV #340, @#WHLVEC+2`, with `ISR: RTI` at the end.',
+    'In `DRIVE`, start the wheels with `CS.GO!CS.IE`, and replace the polling loop by a single `WAIT`.',
   ],
   solution: `; Lesson 7: drive to the exit without wasting energy.
-; Start the wheels with IE, and sleep in WAIT until they interrupt.
+; DRIVE starts the wheels with IE and sleeps in WAIT until they interrupt.
 
+        MOV #DRIVE, @#34    ; TRAP's vector: our system call
+        CLR @#36            ; at priority 0, so the wheels can interrupt it
         MOV #ISR, @#WHLVEC
-        MOV #340, @#WHLVEC+2 ; the handler runs at priority 7
+        MOV #340, @#WHLVEC+2 ; the wheels' handler runs at priority 7
         MOV #PATH, R1
 NEXT:   MOV (R1)+, R0       ; cells to go
         BEQ DONE
-        MOV R0, @#WHLCNT
-        MOV (R1)+, R0       ; function
-        BIS #CS.GO!CS.IE, R0
-        MOV R0, @#WHLCSR    ; start the wheels, interrupt when done
-        WAIT                ; sleep until then
+        MOV (R1)+, R2       ; function
+        TRAP 0              ; DRIVE: R0 cells, R2 function
         TST @#WHLCSR
         BMI DONE            ; blocked: give up
         BR NEXT
 DONE:   HALT
+
+; DRIVE: drive R0 cells with function R2. Called by TRAP, so it ends with RTI.
+DRIVE:  MOV R0, @#WHLCNT
+        BIS #CS.GO!CS.IE, R2
+        MOV R2, @#WHLCSR    ; start the wheels, interrupt when done
+        WAIT                ; sleep until then
+        RTI
 
 ISR:    RTI                 ; nothing to do: WAIT is over
 

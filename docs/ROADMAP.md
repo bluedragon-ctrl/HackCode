@@ -26,6 +26,24 @@ with links into the help, starter, goal, rules, hints and reference solution; pr
 - The math chip, which unlocks EIS.
 - **Done when:** 1000 seeds all generate solvable maps (this has a test).
 
+## 3. Upgrades and the shop
+
+- A shop after each exit: modules bought with coins, built in for the rest of the
+  expedition; a module's registers are a bus hole until it is bought (DESIGN.md §8
+  "Upgrades").
+- The math chip in the shop as well as in the maps.
+- Rangefinder, shield (all sides, no firing while up), repair (as the dock; a charger pays
+  for it), overclock (more CPU cycles a tick, more drain), fast wheels.
+- Help topics and symbols for each module, hidden until it is owned.
+- **Done when:** a test expedition buys each module and a reference program uses it (the
+  shield survives a sentry, repair at a charger restores full HP, overclock finishes a path
+  search in fewer ticks).
+
+## 4. More modules
+
+Decoy beacon (chasers follow it for a while), cloak (monsters don't see the robot, heavy
+drain), battery cell (more maximum energy), cartographer (the explored map into RAM by DMA).
+
 ## Later
 
 Scoring (ticks, energy, coins), a probe device for hacking monsters, kernel/user modes,

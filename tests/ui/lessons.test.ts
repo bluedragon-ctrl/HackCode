@@ -9,7 +9,7 @@ import { SYMBOLS } from '../../src/core';
 import { HELP, parseInline } from '../../src/ui/help';
 import { blockTexts } from '../../src/ui/help/model';
 import { LESSONS, WAIT_ENERGY } from '../../src/ui/lessons/lessons';
-import { checkRules, codeWords, mnemonics, type Lesson } from '../../src/ui/lessons/model';
+import { checkRules, codeId, codeWords, mnemonics, type Lesson } from '../../src/ui/lessons/model';
 import { Progress } from '../../src/ui/lessons/progress';
 import { Session, type StepResult } from '../../src/ui/session';
 
@@ -203,7 +203,31 @@ describe('progress', () => {
   });
 });
 
+describe('saved programs', () => {
+  it('a lesson revised past 1 saves under a new key, so old programs do not open in it', () => {
+    expect(codeId({ id: 'loops' })).toBe('loops');
+    expect(codeId({ id: 'x', revision: 1 })).toBe('x');
+    expect(codeId(byId('interrupts'))).toBe('interrupts.r2');
+  });
+});
+
 describe('session goals', () => {
+  it('a robot destroyed on the exit has lost, not won', () => {
+    // The patrol steps into the exit cell in the tick the robot gets there: a bite at 10 HP.
+    const map = `
+#####
+#>.E#
+###.#
+###P#
+#####`;
+    const t = new Session(map, { robot: { hp: 10 } });
+    expect(t.load('MOV #1, R1\n1$: SOB R1, 1$\nMOV #2, R0\nEMT MOVE\n2$: BR 2$')).toEqual([]);
+    const r = t.run(300);
+    expect(t.world.atExit).toBe(true);
+    expect(t.world.robot.hp).toBe(0);
+    expect(r.stop).toBe('destroyed');
+  });
+
   it('a failed goal ends the run until it is reset', () => {
     const l = byId('bits');
     const goal = { text: '', won: () => false, failed: () => 'nope' };

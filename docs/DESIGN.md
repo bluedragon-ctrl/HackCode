@@ -160,7 +160,9 @@ Everything else in `160000–177777` is a hole (bus error, trap to 4).
 
 **Run** (load) copies the program into RAM (it must fit below `140000`), resets registers,
 PSW and devices (as `RESET`: actions in progress are abandoned), sets PC = start and
-SP = origin. RAM, the world and time persist; "clear RAM" zeroes RAM first.
+SP = origin. The vectors (`000–377`) are cleared first, so a handler installed by an earlier
+program is never used by the next one (it stops on the empty vector instead); the rest of
+RAM, the world and time persist; "clear RAM" zeroes all of RAM first.
 
 ### Traps
 
@@ -207,8 +209,8 @@ Conventions (as RT-11's system calls):
   then until the action is done, by polling READY. It writes the CSR without IE, so that
   device's interrupts are off afterwards. Polling costs energy like any loop; interrupts and
   `WAIT` are the cheaper, advanced way (lesson 7).
-- The **EMT vector** (`030`) is set on every load to the BIOS entry with PSW 0 (priority 0),
-  before the program is copied in, so a program may install its own EMT handler.
+- The **EMT vector** (`030`) is set on every load (after the vectors are cleared) to the BIOS
+  entry with PSW 0 (priority 0), before the program is copied in, so a program may install its own EMT handler.
 - The call names are predefined symbols, so they cannot be used as labels.
 
 ## 5. Devices (memory-mapped)

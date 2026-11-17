@@ -23,27 +23,18 @@ with links into the help, starter, goal, rules, hints and reference solution; pr
 Trim what has no job in the game and would only confuse (the library stays complete; this
 is the game's side: `src/core/robot.ts`, help, lessons).
 
-- **Faults are reported, not a HALT at 0.** No vector is installed but EMT's, so today an
-  odd address, a bus error or an illegal instruction (also `MUL` before the math chip)
-  jumps through an empty vector to address 0 and shows "HALT at 000000". Stop on
-  `odd-address`, `bus-error` and `illegal` while the program has not installed a handler
-  (vector word 0), and show the cause, the PC and the registers (DESIGN.md §3 "Crash").
-- **`BPT` is a breakpoint:** stop on it and show "Breakpoint at …", like the debugger's.
-- **Hide from the help** (they still assemble): `IOT`, `RTT`, `RESET`, and the flag
-  operations other than `CLC` / `SEC` (`CLV CLZ CLN CCC SEV SEZ SEN SCC`, `CLC!CLV`).
-  `TRAP` only in the interrupts lesson; `ADC SBC ASHC` under "advanced".
-- **One name per branch:** `BHIS` / `BLO` in the BIOS, lessons and help; the help says
-  "`BCC`: same as `BHIS`".
-- **Assembler warnings** (general, in the library): a lone symbol on a line (a label that
-  lost its colon becomes an implicit `.WORD`), and `*` or `/` after `+` or `-` without
-  `< >` (strict left-to-right evaluation).
-- **The help leaves out** the ignored listing directives (`.TITLE .SBTTL .IDENT .ENABL
-  .DSABL .LIST .NLIST .PAGE`), `LABEL::`, `NAME ==`, `"AB` and instruction names as values.
-- **`docs/BLUE11_CPU.md`** gets a banner: historical (the Rover design: `PRGCS` gate,
-  2 KB core, 64 cycles); the machine as built is DESIGN.md §4.
+- ~~**Faults are reported, not a HALT at 0**~~ (done: a trap or interrupt with an empty
+  vector stops the CPU, `src/ui/traps.ts` names the cause; DESIGN.md §4 "Traps").
+- ~~**`BPT` is a breakpoint**~~ (done, by the same rule).
+- ~~**Help:** `IOT`, `RTT`, `RESET`, `ADC`, `SBC` and the flag operations other than
+  `CLC` / `SEC` moved to a last group, "Rarely needed"~~ (done).
+- ~~**Branch names:**~~ kept as the code already used them: `BCS` / `BCC` to test C (after
+  an `EMT`), `BLO` / `BHIS` after `CMP`. The help says they are one instruction (done).
+- ~~**Assembler warnings:** a name alone on a line, and `*` or `/` after `+` or `-`
+  without `< >`~~ (done, in the library).
+- ~~`docs/BLUE11_CPU.md` banner~~ (it already had one).
+- `TRAP` in the interrupts lesson (lesson 7): writing a handler at 34.
 - Kept on purpose: the console's keyboard side (`RCSR RBUF RCVVEC`), for later use.
-- **Done when:** a test shows each fault, `BPT` and `MUL` without EIS stop with their
-  cause.
 
 ## 3. Expedition
 

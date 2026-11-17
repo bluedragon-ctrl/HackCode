@@ -220,6 +220,9 @@ class Assembler {
         if (this.pass === 2 && om && om[2] === '' && !this.defined(om[1], pos)) {
           throw new AsmFail(`unknown instruction ${om[1]} (for data, use .WORD)`, pos);
         }
+        if (om && om[2] === '') {
+          this.warn(`${om[1]} alone is stored as data (.WORD ${om[1]}): a missing instruction, or a label without its colon?`, pos);
+        }
         return this.directive('.WORD', rest, pos, pos);
       } else if (om) {
         throw new AsmFail(`unknown instruction ${om[1]}`, pos);
@@ -239,6 +242,7 @@ class Assembler {
 
   private warn(message: string, column = 0): void {
     if (this.pass !== 2) return;
+    if (this.warnings.some((w) => w.line === this.lineNo && w.column === column + 1 && w.message === message)) return;
     this.warnings.push({ line: this.lineNo, column: column + 1, message });
   }
 
@@ -577,6 +581,9 @@ class Assembler {
     const p = new ExprParser(text, column, (name, col) => this.lookup(name, col), this.opts.hex ?? false);
     const v = p.parse();
     if (v.undef && this.pass === 2) throw new AsmFail(`undefined symbol ${p.undefName}`, p.undefCol);
+    if (p.mixedAt !== null) {
+      this.warn(`${p.mixedOp} after + or - is evaluated left to right, not first: group with < > (1+<2*3>)`, p.mixedAt);
+    }
     return v;
   }
 
@@ -695,6 +702,9 @@ class ExprParser {
   undef = false;
   undefName = '';
   undefCol = 0;
+  /** Column of a `*` or `/` that follows a `+` or `-` at the same level (no precedence: worth a warning). */
+  mixedAt: number | null = null;
+  mixedOp = '';
 
   constructor(
     private readonly s: string,
@@ -718,10 +728,13 @@ class ExprParser {
 
   private binary(): number {
     let v = this.term();
+    let addSub = false;
     for (;;) {
       this.ws();
       const op = this.s[this.i];
       if (op === undefined || !'+-*/&!'.includes(op)) return v;
+      if (op === '+' || op === '-') addSub = true;
+      else if ((op === '*' || op === '/') && addSub && this.mixedAt === null) { this.mixedAt = this.col + this.i; this.mixedOp = op; }
       this.i++;
       const r = this.term();
       switch (op) {

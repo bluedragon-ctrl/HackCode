@@ -137,7 +137,9 @@ The player works console-style: short snippets first, automating more over time.
 
 - Energy 0: devices refuse with ERROR "no power"; CPU keeps running.
 - HALT: program ends, world pauses.
-- Crash (odd address, bus error, double fault): run ends with register dump; reboot offered.
+- Crash (odd address, bus error, illegal instruction, a trap or interrupt with no handler,
+  double fault): the run stops and the status line names the cause and the address
+  (§4 "Traps"); the registers stay in the CPU panel. Run again to retry.
 - HP 0: robot destroyed — run over.
 
 ## 4. Robot machine
@@ -158,6 +160,15 @@ Everything else in `160000–177777` is a hole (bus error, trap to 4).
 **Run** (load) copies the program into RAM (it must fit below `140000`), resets registers,
 PSW and devices (as `RESET`: actions in progress are abandoned), sets PC = start and
 SP = origin. RAM, the world and time persist; "clear RAM" zeroes RAM first.
+
+### Traps
+
+A trap or interrupt whose vector is empty (new-PC word 0) **stops the CPU** instead of
+jumping to address 0 (`Robot` sets `cpu.onTrap`; `src/ui/traps.ts` words the message).
+A fault (odd address, bus error, illegal instruction, `MUL` without EIS) stops at the
+faulting instruction; `BPT`, `TRAP`, `IOT` and `EMT` stop just after theirs, so `BPT` works
+as a breakpoint written in the code and Continue goes on. A handler the program installs
+in the vector is used as on the real machine. Monsters' machines are not affected.
 
 ### Options
 

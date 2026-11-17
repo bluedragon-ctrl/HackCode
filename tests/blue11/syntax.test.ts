@@ -73,3 +73,30 @@ describe('assembler compatibility', () => {
     expect(ok(' .TITLE T\n .SBTTL S\n .IDENT /1/\n .ENABL LC\n .DSABL GBL\n .LIST\n .NLIST\n .PAGE\n HALT').bytes.length).toBe(2);
   });
 });
+
+describe('warnings for likely mistakes', () => {
+  const warns = (src: string) => assemble(src).warnings.map((w) => `${w.line}:${w.column} ${w.message}`);
+
+  it('a name alone on a line is data, with a warning', () => {
+    const r = assemble('MOVE = 0\nX:  MOVE\n    HALT');
+    expect(r.ok).toBe(true);
+    expect(r.bytes[0] | (r.bytes[1] << 8)).toBe(0);
+    expect(warns('MOVE = 0\nX:  MOVE\n    HALT')).toEqual([
+      '2:5 MOVE alone is stored as data (.WORD MOVE): a missing instruction, or a label without its colon?',
+    ]);
+  });
+
+  it('a table of names and a number alone give no warning', () => {
+    expect(warns('A = 1\nB = 2\nT:  A, B\n    1234\n    .WORD A')).toEqual([]);
+  });
+
+  it('* or / after + or - warns: there is no precedence', () => {
+    expect(word(' .WORD 1+2*3')).toBe(9);
+    expect(warns(' .WORD 1+2*3')).toEqual(['1:11 * after + or - is evaluated left to right, not first: group with < > (1+<2*3>)']);
+    expect(warns(' MOV #10-4/2, R0')).toHaveLength(1);
+  });
+
+  it('no warning with < >, or with * first', () => {
+    expect(warns(' .WORD 1+<2*3>\n .WORD 2*3+1\n .WORD <1+2>*3')).toEqual([]);
+  });
+});

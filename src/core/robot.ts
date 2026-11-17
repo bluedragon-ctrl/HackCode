@@ -8,7 +8,8 @@
  *   177546         KW11-L line clock, one tick per game tick of CPU time
  *   177560         DL11 console
  *
- * EIS is off.
+ * EIS is off. A trap or interrupt whose vector is empty (new PC 0) stops the CPU instead
+ * of jumping to address 0, so the host can say what happened (DESIGN.md §4 "Traps").
  */
 
 import { BUS_ERROR, DeviceMachine, DL11, KW11L, VEC, type AssembleResult, type Cpu, type Device } from '../blue11';
@@ -93,6 +94,7 @@ export class Robot {
     this.actions = [this.wheels, this.laser, this.scanner, this.grabber, this.dock];
     this.devices = [this.rom, ...this.actions, new Status(this), new Inventory(this), this.clock, this.console];
     for (const d of this.devices) this.machine.add(d);
+    this.machine.cpu.onTrap = (t) => (this.vectorEmpty(t.vector) ? 'stop' : 'vector');
     const b = bios();
     this.rom.load(b.bytes, b.origin - MEMORY.ROM_BASE);
     world.grid.set('occupant', this.x, this.y,
@@ -100,6 +102,12 @@ export class Robot {
   }
 
   get cpu(): Cpu { return this.machine.cpu; }
+
+  /** No handler at `vector`: its new-PC word is 0. */
+  vectorEmpty(vector: number): boolean {
+    const ram = this.machine.ram;
+    return (ram[vector] | (ram[vector + 1] << 8)) === 0;
+  }
 
   /** HP, from the robot's record on the grid. */
   get hp(): number { return this.world.grid.get('occupant', this.x, this.y).hp; }

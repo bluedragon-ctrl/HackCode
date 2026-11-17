@@ -24,6 +24,7 @@ import { Progress, type KeyValue } from './lessons/progress';
 import { LessonView } from './lessons/view';
 import { BIOS_PROGRAM, TEST_MAP, TEST_PROGRAM } from './samples';
 import { Session, type StepResult } from './session';
+import { describeTrap } from './traps';
 
 /** The id under which the sandbox (the test map, no lesson) keeps its program. */
 const SANDBOX = 'sandbox';
@@ -219,7 +220,8 @@ export function startPage(): void {
       case 'breakpoint': showStatus(`Breakpoint at ${octal(session.world.robot.cpu.r[7])}.`); return false;
       case 'trap': {
         const t = res.trap;
-        showStatus(`Trap${t ? ` to ${octal(t.vector, 3)}` : ''} at ${octal(session.world.robot.cpu.r[7])}.`, 'error');
+        if (!t) { showStatus(`Trap at ${octal(session.world.robot.cpu.r[7])}.`, 'error'); return false; }
+        showStatus(describeTrap(t, session.world.robot), t.cause === 'bpt' ? undefined : 'error');
         return false;
       }
     }

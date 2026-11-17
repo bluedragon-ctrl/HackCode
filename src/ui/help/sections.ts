@@ -87,7 +87,9 @@ const controls: Section = {
     ),
     h('Status messages'),
     table(['Message', 'Meaning'], [
-      ['HALT at …', 'A `HALT` ran. **HALT at 000000** usually means a [trap](traps) with no handler.'],
+      ['HALT at …', 'A `HALT` ran.'],
+      ['Odd address, Bus error, Illegal instruction …', 'A [trap](traps) with no handler: the run stopped at the instruction that caused it. Fix it and Run again.'],
+      ['BPT at …', 'A `BPT` in the code: Continue goes on after it.'],
       ['WAIT with nothing to wake the CPU', 'A `WAIT` while no interrupt is enabled: it would sleep forever.'],
       ['Double fault', 'A trap failed (its stack was not usable). Run again.'],
       ['N errors: line …', 'The assembler found mistakes; they are marked on their lines.'],
@@ -478,16 +480,16 @@ const traps: Section = {
     table(['Vector', 'Cause'], [
       ['004', '**bus error**: a word at an odd address, an address with nothing there, a write to ROM'],
       ['010', '**illegal instruction**: a word that is no instruction (or `MUL` / `DIV` before the math chip)'],
-      ['014', '`BPT`'],
+      ['014', '`BPT`: a breakpoint in the code'],
       ['020', '`IOT`'],
       [o(VECTOR.CLOCK, 3), 'the line clock (an interrupt)'],
       ['030', '`EMT`: the [BIOS](bios)'],
       ['034', '`TRAP`'],
       [`${o(VECTOR.WHEELS, 3)}–${o(VECTOR.GRABBER, 3)}`, 'the devices (interrupts)'],
     ]),
-    h('HALT at 000000'),
-    p('Most vectors are 0 until you set them, so an unexpected trap jumps to address 0, where the word 0 is a `HALT`. The status line then says **HALT at 000000**. '
-      + 'To find the culprit, look at the stack in **Memory** (type `SP`): the first word is the pushed PC, just after the instruction that trapped.'),
+    h('A trap with no handler'),
+    p('Most vectors are 0 until you set them. A trap or interrupt whose vector is 0 does not jump: the run **stops**, and the status line says what happened and where, '
+      + 'for example *Odd address 000001 at 001004* or *MUL at 001010 needs the math chip*. A fault stops **at** the instruction that caused it; `BPT`, `TRAP` and `IOT` stop just after theirs.'),
     h('Catching a trap'),
     code(`
               MOV  #OOPS, @#4     ; bus errors come to OOPS

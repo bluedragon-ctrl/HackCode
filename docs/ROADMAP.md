@@ -18,7 +18,25 @@ object, the dock device and `EMT CHARGE`; DESIGN.md §5); and lessons 0–7 (map
 with links into the help, starter, goal, rules, hints and reference solution; progress in
 `localStorage`; DESIGN.md §7; every solution wins in `tests/ui/lessons.test.ts`).
 
-## 2. Expedition
+## 2. Blue-11 for players
+
+Trim what has no job in the game and would only confuse (the library stays complete; this
+is the game's side: `src/core/robot.ts`, help, lessons).
+
+- ~~**Faults are reported, not a HALT at 0**~~ (done: a trap or interrupt with an empty
+  vector stops the CPU, `src/ui/traps.ts` names the cause; DESIGN.md §4 "Traps").
+- ~~**`BPT` is a breakpoint**~~ (done, by the same rule).
+- ~~**Help:** `IOT`, `RTT`, `RESET`, `ADC`, `SBC` and the flag operations other than
+  `CLC` / `SEC` moved to a last group, "Rarely needed"~~ (done).
+- ~~**Branch names:**~~ kept as the code already used them: `BCS` / `BCC` to test C (after
+  an `EMT`), `BLO` / `BHIS` after `CMP`. The help says they are one instruction (done).
+- ~~**Assembler warnings:** a name alone on a line, and `*` or `/` after `+` or `-`
+  without `< >`~~ (done, in the library).
+- ~~`docs/BLUE11_CPU.md` banner~~ (it already had one).
+- `TRAP` in the interrupts lesson (lesson 7): writing a handler at 34.
+- Kept on purpose: the console's keyboard side (`RCSR RBUF RCVVEC`), for later use.
+
+## 3. Expedition
 
 - ~~A seeded BSP dungeon generator, a reachability check, difficulty that rises with depth,
   and chargers placed in the generated maps~~ (done: `src/core/dungeon.ts`, DESIGN.md §8).
@@ -46,7 +64,7 @@ drain), battery cell (more maximum energy), cartographer (the explored map into 
 
 ## Later
 
-Scoring (ticks, energy, coins), a probe device for hacking monsters, kernel/user modes,
+Scoring (ticks, energy, coins), keyboard input on the console (`RCSR`, `RBUF`), a probe device for hacking monsters, kernel/user modes,
 more monster kinds with other behaviours, cyberpunk effects (a glitch burst on damage, a
 reticle when the sentry fires, scanlines over the map), more upgrades, and tuning of timings and costs
 from play.

@@ -162,7 +162,9 @@ is tested in `tests/blue11/syntax.test.ts` and `syntax-compat.test.ts`.
 (`.FLT2 .FLT4`, FP11 instructions), and the instructions missing from the CPU (below).
 
 **Warnings** today: a value cut to 16 bits in `NAME = expr`; a symbol named like an
-instruction.
+instruction; a name alone on a line (an implicit `.WORD`: often a missing instruction or a
+label that lost its colon); `*` or `/` after `+` or `-` in one expression without `< >`
+(evaluated left to right, so `1+2*3` is 9).
 
 ## CPU
 

@@ -4,7 +4,8 @@
  *
  * A level comes out as a text map (the same format as hand-made maps, src/core/maps.ts), so
  * it can be printed, compared in tests and built with `parseMap`. The same (seed, depth)
- * always gives the same level. `checkLevel` is the reachability check a level must pass.
+ * always gives the same level. `checkLevel` is the reachability check a level must pass;
+ * `generateLevel` makes sure it does.
  */
 
 import { DX, DY, HEADING, MAP_SIZE } from './constants';
@@ -60,10 +61,26 @@ function levelSeed(seed: number, depth: number): number {
   return (seed + Math.imul(depth, 0x9e3779b9)) >>> 0;
 }
 
-/** Generate the level for (seed, depth). */
+/** Levels tried for one (seed, depth) before giving up: in practice the first passes. */
+const ATTEMPTS = 8;
+
+/**
+ * Generate the level for (seed, depth). It must pass {@link checkLevel}; one that does not is
+ * made again from a seed mixed with the attempt number (still the same for the same inputs).
+ */
 export function generateLevel(seed: number, depth: number): Level {
+  const problems: string[] = [];
+  for (let attempt = 0; attempt < ATTEMPTS; attempt++) {
+    const l = generateOnce(seed, depth, (levelSeed(seed, depth) + Math.imul(attempt, 0x85ebca6b)) >>> 0);
+    const found = checkLevel(buildLevel(l));
+    if (!found.length) return l;
+    problems.push(...found);
+  }
+  throw new Error(`dungeon: no solvable level for seed ${seed}, depth ${depth}: ${problems.join('; ')}`);
+}
+
+function generateOnce(seed: number, depth: number, worldSeed: number): Level {
   const diff = difficulty(depth);
-  const worldSeed = levelSeed(seed, depth);
   const rng = new Rng(worldSeed);
   const size = MAP_SIZE;
   const cells: string[][] = Array.from({ length: size }, () => Array<string>(size).fill('#'));
@@ -151,10 +168,13 @@ export function generateLevel(seed: number, depth: number): Level {
   put(exit[0], exit[1], 'E');
   put(rx, ry, '^>v<'[rng.int(4)]);
 
+  // The free floor cells, in reading order; each one used is taken out (`use`).
+  const free = floor();
+  const use = (c: [number, number]) => { free.splice(free.indexOf(c), 1); };
   /** A random free floor cell that passes the test, or null. */
   const pick = (ok: (x: number, y: number) => boolean): [number, number] | null => {
-    const free = floor().filter(([x, y]) => ok(x, y));
-    return free.length ? free[rng.int(free.length)] : null;
+    const fit = free.filter(([x, y]) => ok(x, y));
+    return fit.length ? fit[rng.int(fit.length)] : null;
   };
 
   // Chargers: in a room, not on a corridor, and only where every floor cell stays connected.
@@ -171,7 +191,7 @@ export function generateLevel(seed: number, depth: number): Level {
       if (!c) break;
       tried.add(c[1] * size + c[0]);
       put(c[0], c[1], '+');
-      if (connected()) break;
+      if (connected()) { use(c); break; }
       put(c[0], c[1], '.');
     }
   }
@@ -182,6 +202,7 @@ export function generateLevel(seed: number, depth: number): Level {
     if (!c) break;
     const n = range(1, diff.maxPile);
     put(c[0], c[1], n === 1 ? '$' : String(n));
+    use(c);
   }
 
   // Monsters away from the robot (closer if the map is small), on empty floor.
@@ -192,6 +213,7 @@ export function generateLevel(seed: number, depth: number): Level {
     }
     if (!c) break;
     put(c[0], c[1], diff.kinds[rng.int(diff.kinds.length)]);
+    use(c);
   }
 
   return { seed, depth, text: cells.map((r) => r.join('')).join('\n'), rooms, worldSeed };

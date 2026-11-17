@@ -55,10 +55,18 @@ export function breakpointLines(state: EditorState): number[] {
 /** Executions per source line; an empty map clears the gutter. */
 export const setHeat = StateEffect.define<ReadonlyMap<number, number>>();
 
-const heatField = StateField.define<ReadonlyMap<number, number>>({
-  create: () => new Map(),
+/** The heat per line, and its largest count (worked out once, not per line). */
+interface Heat { lines: ReadonlyMap<number, number>; max: number }
+
+const heatField = StateField.define<Heat>({
+  create: () => ({ lines: new Map(), max: 1 }),
   update(v, tr) {
-    for (const e of tr.effects) if (e.is(setHeat)) v = e.value;
+    for (const e of tr.effects) {
+      if (!e.is(setHeat)) continue;
+      let max = 1;
+      for (const n of e.value.values()) max = Math.max(max, n);
+      v = { lines: e.value, max };
+    }
     return v;
   },
 });
@@ -147,12 +155,10 @@ export const debugExtensions: Extension = [
   gutter({
     class: 'cm-heat-gutter',
     lineMarker(view, line) {
-      const heat = view.state.field(heatField);
-      if (!heat.size) return null;
-      const n = heat.get(view.state.doc.lineAt(line.from).number);
+      const { lines, max } = view.state.field(heatField);
+      if (!lines.size) return null;
+      const n = lines.get(view.state.doc.lineAt(line.from).number);
       if (!n) return null;
-      let max = 1;
-      for (const v of heat.values()) max = Math.max(max, v);
       // log scale, 1–8
       return new HeatMarker(n, Math.max(1, Math.ceil((8 * Math.log(n + 1)) / Math.log(max + 1))));
     },

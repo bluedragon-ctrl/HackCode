@@ -55,6 +55,7 @@ export class Session {
     this.program = null;
     this.last = null;
     this.failure = null;
+    this.heat.fill(0);
   }
 
   private newWorld(): World {

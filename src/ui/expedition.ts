@@ -5,7 +5,7 @@
  * No DOM, so it is tested.
  */
 
-import { ENERGY_MAX, generateLevel, type Level, type World } from '../core';
+import { ENERGY_MAX, generateLevel, ROBOT_HP, type Level, type World } from '../core';
 import { Session } from './session';
 
 /** What the robot brings into a level. */
@@ -30,9 +30,15 @@ export interface ExpeditionState {
  */
 export const ENERGY_FLOOR = ENERGY_MAX / 4;
 
-/** What the robot brings in, with energy raised to {@link ENERGY_FLOOR}. */
+/**
+ * What the robot brings in, with energy raised to {@link ENERGY_FLOOR}, and HP, energy and
+ * coins kept within what the robot can hold (a hand-edited or older saved state).
+ */
 function floored(c: Carried): Carried {
-  return c.energy !== undefined && c.energy < ENERGY_FLOOR ? { ...c, energy: ENERGY_FLOOR } : { ...c };
+  const out: Carried = { coins: Math.min(c.coins, 0xffff) };
+  if (c.hp !== undefined) out.hp = Math.min(c.hp, ROBOT_HP);
+  if (c.energy !== undefined) out.energy = Math.min(Math.max(c.energy, ENERGY_FLOOR), ENERGY_MAX);
+  return out;
 }
 
 /** Seeds the page makes and accepts: six octal digits. */

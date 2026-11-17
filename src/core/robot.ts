@@ -37,6 +37,17 @@ export class Rom implements Device {
   write(): boolean { return false; }
 }
 
+/** Characters of console output the robot keeps (the page shows the end of it). */
+export const CONSOLE_KEEP = 4096;
+
+/**
+ * The robot's DL11 console. Nobody types on it, so its receiver can never wake a CPU in
+ * `WAIT`: such a sleep ends the run at once instead of lasting for ever.
+ */
+class RobotConsole extends DL11 {
+  canWake(): boolean { return false; }
+}
+
 export interface RobotOptions {
   x: number;
   y: number;
@@ -70,7 +81,7 @@ export class Robot {
 
   readonly machine: DeviceMachine;
   readonly rom = new Rom();
-  readonly console = new DL11();
+  readonly console: DL11 = new RobotConsole({ maxOutput: CONSOLE_KEEP });
   readonly clock = new KW11L(TICK_CYCLES);
   readonly wheels: Wheels;
   readonly laser: Laser;

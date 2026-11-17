@@ -109,6 +109,8 @@ class Assembler {
   private definedThisPass = new Set<string>();
   private errors: AsmError[] = [];
   private warnings: AsmError[] = [];
+  /** Warnings already given (line, column, message), so one evaluated twice is given once. */
+  private warned = new Set<string>();
   private pass = 1;
   private lc = 0;
   private scope = 0;
@@ -135,6 +137,7 @@ class Assembler {
       this.definedThisPass = new Set();
       this.errors = [];
       this.warnings = [];
+      this.warned = new Set();
       this.mem.clear();
       this.lines = [];
       this.start = null;
@@ -144,9 +147,10 @@ class Assembler {
         if (!this.line(this.src[i])) break; // .END
       }
     }
-    const addrs = [...this.mem.keys()];
-    const lo = addrs.length ? Math.min(...addrs) : (this.opts.origin ?? 0o1000);
-    const hi = addrs.length ? Math.max(...addrs) + 1 : lo;
+    // A loop, not Math.min(...keys): up to 65536 arguments is more than some engines take.
+    let lo = Infinity, hi = -Infinity;
+    for (const a of this.mem.keys()) { if (a < lo) lo = a; if (a > hi) hi = a; }
+    if (lo === Infinity) { lo = this.opts.origin ?? 0o1000; hi = lo; } else hi++;
     const bytes = new Uint8Array(hi - lo);
     for (const [a, b] of this.mem) bytes[a - lo] = b;
     const lineAt = new Map<number, number>();
@@ -205,7 +209,8 @@ class Assembler {
 
       // Combined flag operations, as the disassembler writes them: CLC!CLV, SEN!SEZ.
       const cc = /^([A-Za-z]+(?:\s*!\s*[A-Za-z]+)+)\s*(.*)$/.exec(rest);
-      if (cc) {
+      // Only when it starts with a flag operation: `FLAGS!MASK` is an implicit .WORD.
+      if (cc && isFlagOp(cc[1].split('!')[0].trim())) {
         this.instruction(this.flagCombination(cc[1], pos), cc[2], pos + rest.length - cc[2].length);
         return true;
       }
@@ -242,7 +247,9 @@ class Assembler {
 
   private warn(message: string, column = 0): void {
     if (this.pass !== 2) return;
-    if (this.warnings.some((w) => w.line === this.lineNo && w.column === column + 1 && w.message === message)) return;
+    const key = `${this.lineNo}:${column}:${message}`;
+    if (this.warned.has(key)) return;
+    this.warned.add(key);
     this.warnings.push({ line: this.lineNo, column: column + 1, message });
   }
 
@@ -369,11 +376,16 @@ class Assembler {
         this.record(here, [], false);
         return true;
       case '.END': {
-        if (args.trim() !== '') {
-          const v = this.expr(args, col);
-          this.start = v.value & 0xffff;
-        }
         this.record(here, [], false);
+        // Assembly stops here even if the start address is bad.
+        if (args.trim() !== '') {
+          try {
+            this.start = this.expr(args, col).value & 0xffff;
+          } catch (e) {
+            if (!(e instanceof AsmFail)) throw e;
+            this.error(e.message, e.column);
+          }
+        }
         return false;
       }
       default:
@@ -633,6 +645,12 @@ class Assembler {
     }
     return out;
   }
+}
+
+/** CLC, SEV, CCC, …: the flag operations that combine with `!`. */
+function isFlagOp(name: string): boolean {
+  const op = BY_NAME.get(name.toUpperCase());
+  return !!op && op.format === 'none' && op.opcode > 0o000240 && op.opcode < 0o000300;
 }
 
 function isText(src: string): boolean {

@@ -16,7 +16,8 @@ Blue-11; contact and laser damage, loot; DESIGN.md §6; seeded behaviour checked
 F1 on the word under the cursor, hover tooltips; DESIGN.md §7 "Help"); and chargers (a charger
 object, the dock device and `EMT CHARGE`; DESIGN.md §5); and lessons 0–7 (map, briefing
 with links into the help, starter, goal, rules, hints and reference solution; progress in
-`localStorage`; DESIGN.md §7; every solution wins in `tests/ui/lessons.test.ts`).
+`localStorage`; DESIGN.md §7; every solution wins in `tests/ui/lessons.test.ts`); and the
+expedition in the page (DESIGN.md §8).
 
 ## 2. Blue-11 for players
 
@@ -41,7 +42,9 @@ is the game's side: `src/core/robot.ts`, help, lessons).
 
 - ~~A seeded BSP dungeon generator, a reachability check, difficulty that rises with depth,
   and chargers placed in the generated maps~~ (done: `src/core/dungeon.ts`, DESIGN.md §8).
-- The expedition mode in the page: a seed, level after level, deeper each time.
+- ~~The expedition mode in the page: a seed, level after level, deeper each time~~ (done:
+  `src/ui/expedition.ts`, "Expedition" in the picker; HP, energy and coins carried; a failed
+  level is retried as entered; DESIGN.md §8 "In the page").
 - The math chip, which unlocks EIS.
 - **Done when:** 1000 seeds all generate solvable maps (this has a test).
 

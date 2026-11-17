@@ -436,9 +436,20 @@ of one expedition differs. The world's seed (monsters' random numbers) comes fro
 - **Reachability check** (`checkLevel(world)`): from the robot, over cells whose occupant is
   not solid or is a monster, the one exit and every coin can be reached, and every charger has
   a reachable cell beside it to dock from. `tests/core/dungeon.test.ts` checks 1000 seeds.
-- *Next:* the expedition mode in the page (level after level), the math chip in the
-  generated maps and EIS unlocked by it. Then upgrades (below).
-  Scoring *later* (ticks, energy, coins).
+- **In the page** (`src/ui/expedition.ts`, "Expedition" in the picker): a seed of up to six
+  octal digits (typed, or a random one for a new expedition; chance is used only in the page,
+  never in the simulation), depth 1 first. The same program runs on every level: at the exit
+  the next level is built and the program loaded afresh (registers, devices and RAM new) and,
+  if it was running, it runs on. The robot's **HP, energy and coins** come along; its
+  inventory does not. A run that fails (destroyed, stuck) is retried with Run or Reset map:
+  the level starts again as the robot entered it, so a level can be studied and the program
+  fixed. "New expedition" starts over from depth 1. The browser keeps the expedition under
+  way (seed, depth, what the robot brought in, ticks so far), its program and the deepest
+  depth reached. The starter program is a right-hand wall follower: it clears some levels
+  and dies on others, which is the player's work to fix.
+  (`tests/ui/expedition.test.ts`: the starter clears two levels of one seed.)
+- *Next:* the math chip in the generated maps and EIS unlocked by it. Then upgrades (below).
+  Scoring *later* (ticks, energy, coins); a retry may then cost something.
 
 ### Upgrades and the shop
 

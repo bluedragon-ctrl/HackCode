@@ -121,6 +121,10 @@ dialog.help[open] { display: flex; }
 .lesson-title { color: var(--accent); font-family: ui-monospace, 'Cascadia Code', 'Fira Code', Menlo, monospace; font-weight: bold; }
 .lesson-tick { color: #4dff9a; text-shadow: 0 0 6px #4dff9a; visibility: hidden; }
 .lesson-bar.done .lesson-tick { visibility: visible; }
+.exp-info { font-family: ui-monospace, 'Cascadia Code', 'Fira Code', Menlo, monospace; font-size: 0.82rem; opacity: 0.9; }
+.exp-seed { font-size: 0.85rem; }
+#exp-seed { width: 8ch; margin-left: 0.3rem; background: #000; color: var(--fg); border: 1px solid var(--line); font: inherit; font-family: ui-monospace, 'Cascadia Code', 'Fira Code', Menlo, monospace; padding: 0 0.3rem; }
+#exp-seed.bad { border-color: var(--warn); }
 .lesson-hint { border-left: 3px solid var(--warn); background: #ffb34712; padding: 0.3rem 0.6rem; }
 .lesson-bar code, .brief-goal code { font-family: ui-monospace, 'Cascadia Code', 'Fira Code', Menlo, monospace; color: #fff; background: #ffffff12; padding: 0 0.2em; border-radius: 3px; font-size: 0.92em; }
 .lesson-bar a { color: var(--accent); }

@@ -44,33 +44,19 @@ in the README as a departure from the original machine.
    machine's design (principle, assembler, cycles, flags, traps and interrupts, multiply and
    divide, departures, the library's boundary). It moves with the library. `BLUE11_CPU.md` stays
    here as Rover's history, and its library sections point to the new document.
-4. **Its own repository** (the owner creates `blue11`; this session can't): extract
-   `src/blue11/`, `tests/blue11/`, `src/simulator/` and the docs `BLUE11_MACHINE.md`,
-   `BLUE11_DISPLAY.md`, `BLUE11_KEYBOARD.md` with their history
-   (`git filter-repo`). Layout: npm workspaces `packages/blue11` (the library) and
-   `apps/simulator`. Also: a license, `AGENTS.md`, CI (tests, build, Pages for the simulator,
-   npm publish on a tag), an ESM build with types, the `blue11/codemirror` subpath with
-   `@codemirror/*` as peer dependencies (the core keeps no dependencies), semver, and a
-   CHANGELOG. The JSON form of the states counts as public API.
-   **Done when:** version 0.1.0 is published and its tests pass in the new repository.
-5. **HackCode uses the package:** depend on `blue11` 0.1, delete `src/blue11/` and
-   `tests/blue11/`, update the imports, and update `AGENTS.md` (the layout table), `DESIGN.md`
+4. ~~**Its own repository**~~ (done, 2026-11-18):
+   [bluedragon-ctrl/Blue11](https://github.com/bluedragon-ctrl/Blue11). The library moved there
+   with its history, as npm workspaces with the package `blue11` (MIT licence, a build to ESM and
+   types, CI, publishing to npm on a tag). From here on, the library's steps (publishing 0.1.0,
+   the display, the keyboard, the simulator) are tracked in its own `docs/ROADMAP.md`.
+   **Still to do:** the owner adds the `NPM_TOKEN` secret and pushes the tag `v0.1.0`.
+5. **HackCode uses the package:** depend on `blue11` 0.1, delete `src/blue11/`,
+   `tests/blue11/`, `src/simulator/` and the copies of `BLUE11_MACHINE.md`, `BLUE11_DISPLAY.md`
+   and `BLUE11_KEYBOARD.md` (their home is Blue-11 now), update the imports and links, and
+   update `AGENTS.md` (the layout table), `DESIGN.md`
    and `BLUE11_CPU.md` decision 19. **Done when:** HackCode's tests and build pass unchanged.
-6. **The display in the library** (in the new repository): the `Display` device as in the spec,
-   with both beams, plus a general `Rom` device (HackCode's, made general), their tests (spec
-   §10), a README section, and the departure listed.
-7. **The keyboard in the library:** the same steps, from the step-2 spec.
-8. **The simulator page:** editor (CodeMirror with the library's highlighting), assembler
-   errors inline, registers and flags, memory and disassembly, breakpoints,
-   step / run / pause, the console, the display on a canvas, the keyboard, a speed slider
-   (frames per second of wall time, never cycles per frame), and a "Real beam (tearing)" switch.
-   It also gets the ROM with the font, `DRAWCH` and `DRAWC1` (spec §11), with its listing shown. It also has examples, programs
-   saved in `localStorage` and shared by URL, and an input log for replays.
-   **Done when:** every example program runs in the page, and the tests check the frames it
-   draws.
-9. **Later, if wanted:** a third display mode (such as 128 × 128 at 1 bpp), a shared UI package for the
-   debugger panels HackCode and the simulator have in common (extracted only once both exist),
-   and the display or keyboard in HackCode.
+6. **Steps 6–9 moved to Blue-11's roadmap:** the display and keyboard devices, the simulator,
+   and the later options.
 
 ## 2. Blue-11 for players
 

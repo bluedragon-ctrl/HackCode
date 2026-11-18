@@ -21,6 +21,7 @@ import { helpTooltip } from './help/tooltip';
 import { HelpView } from './help/view';
 import { plain } from './help/model';
 import { LESSONS } from './lessons/lessons';
+import { MachineView } from './machine-view';
 import { codeId, type Lesson } from './lessons/model';
 import { Progress, type KeyValue } from './lessons/progress';
 import { confirmReplace, LessonView } from './lessons/view';
@@ -108,6 +109,24 @@ export function startPage(): void {
     { get session() { return session; }, editor, get running() { return running; } },
   );
 
+  const machine = new MachineView({ step: $('mv-step'), listing: $('mv-listing'), listingNote: $('mv-listing-note'), map: $('mv-map'), stack: $('mv-stack') });
+  /** The board shows the map or the machine view (the tabs); the choice is remembered. */
+  const VIEW_KEY = 'hackcode.view';
+  let machineShown = false;
+  function setView(machineView: boolean): void {
+    machineShown = machineView;
+    $('map').hidden = machineView;
+    $('machine').hidden = !machineView;
+    for (const [id, on] of [['tab-map', !machineView], ['tab-machine', machineView]] as const) {
+      $(id).classList.toggle('active', on);
+      $(id).setAttribute('aria-selected', String(on));
+    }
+    try { browserStorage()?.setItem(VIEW_KEY, machineView ? 'machine' : 'map'); } catch { /* storage full or off */ }
+    show();
+  }
+  $('tab-map').addEventListener('click', () => setView(false));
+  $('tab-machine').addEventListener('click', () => setView(true));
+
   function showStatus(text: string, kind: 'info' | 'error' | 'win' = 'info'): void {
     status.textContent = text;
     status.className = kind;
@@ -125,7 +144,8 @@ export function startPage(): void {
   function show(): void {
     const w = session.world;
     const r = w.robot;
-    renderer.draw(w);
+    if (machineShown) machine.show(session, running);
+    else renderer.draw(w);
     const bar = $<HTMLDivElement>('energy-bar');
     bar.style.width = `${(100 * r.energy) / ENERGY_MAX}%`;
     bar.classList.toggle('charging', r.dock.charging);
@@ -391,6 +411,8 @@ export function startPage(): void {
     ev.preventDefault();
     if (help.isOpen) $<HTMLDialogElement>('help').close(); else help.open();
   });
+
+  if (browserStorage()?.getItem(VIEW_KEY) === 'machine') setView(true);
 
   // First visit: lesson 0 and its briefing. Later: where the player was, briefed only if new to it.
   const first = progress.current ?? LESSONS[0].id;

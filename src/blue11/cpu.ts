@@ -137,6 +137,12 @@ export class Cpu {
    * an instruction whose fetch faults, nor for interrupts.
    */
   onInstruction: ((pc: number, opcode: number) => void) | null = null;
+  /**
+   * Called for every bus access that succeeds, instruction fetches included: the address,
+   * the value read or written (a byte for byte accesses), whether it was a write, and
+   * whether it was a byte. For tracers and teaching views. A faulting access is not reported.
+   */
+  onAccess: ((addr: number, value: number, write: boolean, byte: boolean) => void) | null = null;
   /** Called when PSW bits 15–14 (current mode) change, by a trap, `RTI` or a PSW write. */
   onModeChange: ((newMode: number, oldMode: number) => void) | null = null;
 
@@ -259,9 +265,13 @@ export class Cpu {
     addr &= 0xffff;
     if (!byte && (addr & 1)) throw this.busFault('odd-address', addr);
     if (this.cycleModel === 'per-bus-access') this.cyc++;
-    if ((addr & 0xfffe) === PSW_ADDRESS) return byte ? (addr & 1 ? this.psw >> 8 : this.psw & 0xff) : this.psw;
-    const v = this.bus.read(addr, byte);
-    if (v < 0) throw this.busFault('bus-error', addr);
+    let v: number;
+    if ((addr & 0xfffe) === PSW_ADDRESS) v = byte ? (addr & 1 ? this.psw >> 8 : this.psw & 0xff) : this.psw;
+    else {
+      v = this.bus.read(addr, byte);
+      if (v < 0) throw this.busFault('bus-error', addr);
+    }
+    if (this.onAccess) this.onAccess(addr, v, false, byte);
     return v;
   }
 
@@ -277,9 +287,11 @@ export class Cpu {
       else w = (this.psw & 0xff00) | (value & 0xff);
       // The T bit can't be set by a write (as on the real machine).
       this.setPsw((w & ~PSW.T) | (this.psw & PSW.T));
+      if (this.onAccess) this.onAccess(addr, byte ? value & 0xff : value & 0xffff, true, byte);
       return;
     }
     if (!this.bus.write(addr, byte ? value & 0xff : value & 0xffff, byte)) throw this.busFault('bus-error', addr);
+    if (this.onAccess) this.onAccess(addr, byte ? value & 0xff : value & 0xffff, true, byte);
   }
 
   private fetch(): number {

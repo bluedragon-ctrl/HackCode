@@ -66,7 +66,30 @@
             <button id="exp-starter" class="secondary" title="Put the starter program back">Starter program</button>
           </div>
         </div>
+        <div class="view-tabs" role="tablist">
+          <button id="tab-map" class="tab active" role="tab" aria-selected="true" title="The dungeon">Map</button>
+          <button id="tab-machine" class="tab" role="tab" aria-selected="false" title="Inside the robot's computer: the program as words in memory, what each Step does, the memory map and the stack">Machine</button>
+        </div>
         <canvas id="map"></canvas>
+        <div id="machine" class="machine" hidden>
+          <div>
+            <h2>Last step <span class="hint">fetch → read / write → registers</span></h2>
+            <div id="mv-step" class="mv-box"></div>
+          </div>
+          <div class="mv-cols">
+            <div>
+              <h2>Program in memory <span class="hint">the assembler's listing: address, words, source</span></h2>
+              <div id="mv-listing-note" class="mv-note"></div>
+              <div id="mv-listing" class="mv-box mv-listing"></div>
+            </div>
+            <div>
+              <h2>Memory map <span class="hint">high addresses on top</span></h2>
+              <div id="mv-map" class="mv-map"></div>
+              <h2>Stack <span class="hint">top at SP</span></h2>
+              <div id="mv-stack" class="mv-box"></div>
+            </div>
+          </div>
+        </div>
       </section>
       <section class="pane side">
         <div>

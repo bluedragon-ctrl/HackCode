@@ -2,6 +2,9 @@
 
 Next steps toward v1, in order. Each step is one PR with tests first. Design: [`DESIGN.md`](DESIGN.md).
 
+**Owner, 2026-11-18:** §1 (Blue-11 on its own) is finished before any more work on HackCode
+(§2 onwards).
+
 **Done:** the Blue-11 library with its tests; `src/core/`: grid, robot machine, devices,
 tick loop, symbols, text maps; and the first playable page (`src/ui/`, `src/render/`: editor,
 Canvas 2D map, Run / Continue / Pause / Step / Step tick, robot / CPU / console panels, a test
@@ -18,6 +21,54 @@ object, the dock device and `EMT CHARGE`; DESIGN.md §5); and lessons 0–7 (map
 with links into the help, starter, goal, rules, hints and reference solution; progress in
 `localStorage`; DESIGN.md §7; every solution wins in `tests/ui/lessons.test.ts`); and the
 expedition in the page (DESIGN.md §8).
+
+## 1. Blue-11 on its own (first: HackCode waits for it)
+
+The library becomes a project of its own: a repository shared by several projects, with a
+standalone simulator where students write programs that draw graphics and read the keyboard.
+`docs/BLUE11_CPU.md` §14.3 planned this "when a second project needs it". The simulator is
+that second project. Every new device follows `src/blue11/AGENTS.md`: tests first, and listed
+in the README as a departure from the original machine.
+
+1. **Display spec:** [`BLUE11_DISPLAY.md`](BLUE11_DISPLAY.md). Two modes in a 16 KB window:
+   mode 0 is 64 × 64 at a byte per pixel (4 pages), mode 1 is 128 × 128 at 4 bits per pixel
+   (2 pages). Both use a 16-colour RGB 3-3-3 palette, with a vertical-blank flag and interrupt,
+   and an optional scanning beam that tears. An 8 × 8 font and the routines that draw it are in
+   the simulator's ROM. *Decided (2026-11-18).*
+2. **Keyboard spec:** [`BLUE11_KEYBOARD.md`](BLUE11_KEYBOARD.md). Key codes are positions on
+   a US keyboard, with letters and digits as ASCII. A key map has one byte per key at `177000`
+   (`200` = down). An event queue of 16 presses and releases (`KBDCS`, `KBDBUF` at `176700`)
+   interrupts at vector `330`. Exact replays come from an input log of (cycle, event). The DL11
+   console stays the device for typed text. *Draft: the owner reviews it and answers its §9.*
+3. **Split the docs:** the library's parts of `BLUE11_CPU.md` (§1, §3–§5, §9, §11, §14.1–§14.3)
+   become the machine spec that moves with the library. Rover's history and HackCode's notes
+   stay here.
+4. **Its own repository** (the owner creates `blue11`; this session can't): extract
+   `src/blue11/`, `tests/blue11/`, `src/simulator/` and the new docs with their history
+   (`git filter-repo`). Layout: npm workspaces `packages/blue11` (the library) and
+   `apps/simulator`. Also: a license, `AGENTS.md`, CI (tests, build, Pages for the simulator,
+   npm publish on a tag), an ESM build with types, the `blue11/codemirror` subpath with
+   `@codemirror/*` as peer dependencies (the core keeps no dependencies), semver, and a
+   CHANGELOG. The JSON form of the states counts as public API.
+   **Done when:** version 0.1.0 is published and its tests pass in the new repository.
+5. **HackCode uses the package:** depend on `blue11` 0.1, delete `src/blue11/` and
+   `tests/blue11/`, update the imports, and update `AGENTS.md` (the layout table), `DESIGN.md`
+   and `BLUE11_CPU.md` decision 19. **Done when:** HackCode's tests and build pass unchanged.
+6. **The display in the library** (in the new repository): the `Display` device as in the spec,
+   with both beams, plus a general `Rom` device (HackCode's, made general), their tests (spec
+   §10), a README section, and the departure listed.
+7. **The keyboard in the library:** the same steps, from the step-2 spec.
+8. **The simulator page:** editor (CodeMirror with the library's highlighting), assembler
+   errors inline, registers and flags, memory and disassembly, breakpoints,
+   step / run / pause, the console, the display on a canvas, the keyboard, a speed slider
+   (frames per second of wall time, never cycles per frame), and a "Real beam (tearing)" switch.
+   It also gets the ROM with the font, `DRAWCH` and `DRAWC1` (spec §11), with its listing shown. It also has examples, programs
+   saved in `localStorage` and shared by URL, and an input log for replays.
+   **Done when:** every example program runs in the page, and the tests check the frames it
+   draws.
+9. **Later, if wanted:** a third display mode (such as 128 × 128 at 1 bpp), a shared UI package for the
+   debugger panels HackCode and the simulator have in common (extracted only once both exist),
+   and the display or keyboard in HackCode.
 
 ## 2. Blue-11 for players
 
@@ -48,7 +99,7 @@ is the game's side: `src/core/robot.ts`, help, lessons).
 - The math chip, which unlocks EIS.
 - **Done when:** 1000 seeds all generate solvable maps (this has a test).
 
-## 3. Upgrades and the shop
+## 4. Upgrades and the shop
 
 - A shop after each exit: modules bought with coins, built in for the rest of the
   expedition; a module's registers are a bus hole until it is bought (DESIGN.md §8
@@ -61,7 +112,7 @@ is the game's side: `src/core/robot.ts`, help, lessons).
   shield survives a sentry, repair at a charger restores full HP, overclock finishes a path
   search in fewer ticks).
 
-## 4. More modules
+## 5. More modules
 
 Decoy beacon (chasers follow it for a while), cloak (monsters don't see the robot, heavy
 drain), battery cell (more maximum energy), cartographer (the explored map into RAM by DMA).

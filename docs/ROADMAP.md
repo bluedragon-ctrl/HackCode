@@ -32,8 +32,9 @@ in the README as a departure from the original machine.
 
 1. **Display spec:** [`BLUE11_DISPLAY.md`](BLUE11_DISPLAY.md). Two modes in a 16 KB window:
    mode 0 is 64 × 64 at a byte per pixel (4 pages), mode 1 is 128 × 128 at 4 bits per pixel
-   (2 pages). Both use a 16-colour RGB 3-3-3 palette, with a vertical-blank flag and interrupt.
-   *Draft: the owner reviews it and answers its §9.*
+   (2 pages). Both use a 16-colour RGB 3-3-3 palette, with a vertical-blank flag and interrupt,
+   and an optional scanning beam that tears. An 8 × 8 font and the routines that draw it are in
+   the simulator's ROM. *Mostly decided (2026-11-18). Its §9 has the last open questions.*
 2. **Keyboard spec** (`docs/BLUE11_KEYBOARD.md`): which keys are down (for games), and key
    presses and releases as scan codes queued with an interrupt, at `176700`. The console
    (DL11) stays the device for typed text. Input is recorded as (cycle, event), so a run can be
@@ -53,12 +54,14 @@ in the README as a departure from the original machine.
    `tests/blue11/`, update the imports, and update `AGENTS.md` (the layout table), `DESIGN.md`
    and `BLUE11_CPU.md` decision 19. **Done when:** HackCode's tests and build pass unchanged.
 6. **The display in the library** (in the new repository): the `Display` device as in the spec,
-   its tests (spec §10), a README section, and the departure listed.
+   with both beams, plus a general `Rom` device (HackCode's, made general), their tests (spec
+   §10), a README section, and the departure listed.
 7. **The keyboard in the library:** the same steps, from the step-2 spec.
 8. **The simulator page:** editor (CodeMirror with the library's highlighting), assembler
    errors inline, registers and flags, memory and disassembly, breakpoints,
-   step / run / pause, the console, the display on a canvas, the keyboard, and a speed slider
-   (frames per second of wall time, never cycles per frame). It also has examples, programs
+   step / run / pause, the console, the display on a canvas, the keyboard, a speed slider
+   (frames per second of wall time, never cycles per frame), and a "Real beam (tearing)" switch.
+   It also gets the ROM with the font, `DRAWCH` and `DRAWC1` (spec §11), with its listing shown. It also has examples, programs
    saved in `localStorage` and shared by URL, and an input log for replays.
    **Done when:** every example program runs in the page, and the tests check the frames it
    draws.

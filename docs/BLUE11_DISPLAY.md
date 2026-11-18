@@ -8,6 +8,10 @@ not need it.
 **Owner decisions:**
 
 - 2026-11-18: the display supports both 64 × 64 and 128 × 128 pixels: modes 0 and 1 (§3).
+- 2026-11-18: 16 colours from a palette (§4), and 20000 cycles per frame (§5).
+- 2026-11-18: tearing is available as an option, the *scanning beam* (§5.1).
+- 2026-11-18: there is no text mode. Instead, an 8 × 8 font sits in the simulator's ROM, together
+  with routines that draw characters, as readable source that students can study and copy (§11).
 
 The companion devices are already built: the DL11 console and the KW11-L line clock
 (`src/blue11/devices.ts`). The keyboard device is specified next (ROADMAP.md §1, step 2).
@@ -25,8 +29,9 @@ The companion devices are already built: the DL11 console and the KW11-L line cl
 - **It follows the library's rules** (`src/blue11/AGENTS.md`): deterministic, integers only, no
   DOM, and its state survives JSON. The library keeps only the pixels. The host draws them.
 
-**Not goals:** sprites, hardware scrolling, line drawing, a text mode, or blitting. A program
-does these itself, and that is the lesson.
+**Not goals:** sprites, hardware scrolling, line drawing, a hardware text mode, or blitting. A
+program does these itself, and that is the lesson. For text, the simulator's ROM has a font and
+the routines that draw it, written in Blue-11 so students can read them (§11).
 
 ## 2. Not like the original machine
 
@@ -126,7 +131,8 @@ moved. The vector is `320` and the level is 4; both can be changed.
 | :--- | :--- | :--- | :--- |
 | `176600` | `DSPCS` | read / write | control and status (below) |
 | `176602` | `DSPFRM` | read only | frame counter: +1 at every vertical blank, wraps at 16 bits |
-| `176604`–`176616` | | | hole: bus error (trap 4) |
+| `176604` | `DSPLIN` | read only | the beam: the row it reads next (0–77 or 0–177), or `177777` during the vertical blank (§5.1) |
+| `176606`–`176616` | | | hole: bus error (trap 4) |
 | `176620`–`176656` | `DSPPAL` | read / write | 16 palette words; entry *n* at `176620 + 2n` |
 
 **`DSPCS`**
@@ -183,9 +189,9 @@ Index 0 is black, so a cleared screen is black in both modes.
   4. If `IE` is set, the device requests an interrupt at vector `320`, level 4. As on the KW11-L,
      this happens only at the blank: setting `IE` while `DONE` is already set does not interrupt.
      Clearing `IE` withdraws a request that has not been taken yet.
-- **The student sees exactly what memory held at the blank.** Writes made during a frame all
-  appear at the next blank, so there is no tearing. A real raster display tears, but then the
-  picture would depend on the host, so the device leaves tearing out on purpose.
+- **By default, the student sees exactly what memory held at the blank** (the *instant* beam).
+  Writes made during a frame all appear at the next blank, so there is no tearing. A real raster
+  display tears; the *scanning* beam (§5.1) shows that, as an option.
 - **Double buffering:** draw on a page that is not shown, flip `PAGE`, then wait for the blank.
   The flip takes effect at the blank, never in the middle of a frame. Mode 0 with pages 0 and 1:
 
@@ -210,6 +216,40 @@ Index 0 is black, so a cleared screen is black in both modes.
 - **The simulator's speed slider** changes how many frames the host runs per second of wall
   time, never `frameCycles`, so a program behaves the same at every speed.
 
+### 5.1 The scanning beam: tearing, as an option
+
+A real raster display reads memory row by row while the program goes on writing to it. If the
+program draws on the page being shown, the top of the picture can come from one state and the
+bottom from another: this is **tearing**. With the host option `beam: 'scan'` the device behaves
+like that. The default, `beam: 'instant'`, does not tear.
+
+- **The beam's timing is the same in both settings.** A frame of `frameCycles` cycles starts
+  with the **vertical blank**, which lasts `blankCycles` cycles (default `frameCycles / 8`,
+  2500). During the blank the beam reads nothing. After it, the beam reads the H rows (64 or 128)
+  evenly over the rest of the frame: row r at cycle `blankCycles + floor(r * (frameCycles -
+  blankCycles) / H)` after the start of the blank. `DSPLIN` shows where the beam is in either
+  setting.
+- **Instant beam (default):** the whole page and the palette are latched at the start of the
+  blank (§5). `DSPLIN` is only information.
+- **Scanning beam:** each row is latched **when the beam reads it**, with the palette as it is at
+  that moment. The picture composed this way is handed to the host at the next blank. `PAGE`
+  and `MODE` are still latched only at the blank, so a picture never mixes two pages.
+- **What it teaches:**
+  - *Draw during the blank.* After `VSYNC`, the program has `blankCycles` cycles before the beam
+    reaches row 0. A small change done in that time never tears.
+  - *Double buffering solves tearing.* Drawing on the hidden page never tears, however long it
+    takes.
+  - *Racing the beam.* Changing a palette entry when `DSPLIN` reaches a row gives a different
+    colour from that row on, for sky gradients and stripes: a classic trick, and timing to the
+    cycle.
+- **Rules.** In the scanning setting, `nextEvent()` returns the cycles until the next row read,
+  so the CPU stops for each row and the latch sees memory as it was at that cycle. The CPU only
+  stops between instructions, so a row is latched up to one instruction late. Because of this,
+  a picture depends only on the program and the options, never on the host. The machine stops
+  once per row, at most 128 times a frame: cheap.
+- **The setting is part of the machine,** like `frameCycles`. The simulator has a "Real beam
+  (tearing)" switch, saved with the program, in share links and in replays.
+
 ## 6. Memory and the bus
 
 - Pixel memory is an ordinary 16 KB read / write window at `120000`–`157777`, and its base can
@@ -225,7 +265,8 @@ Index 0 is black, so a cleared screen is black in both modes.
   | `000000`–`000377` | vectors (`320`: display) |
   | `000400`–`117777` | RAM (40 KB in total from 0) |
   | `120000`–`157777` | display memory (mode 0: pages 0–3; mode 1: pages 0–1) |
-  | `160000`–`176577` | nothing: bus error |
+  | `160000`–`167777` | ROM: the font and the drawing routines (§11). Writes trap to 4 |
+  | `170000`–`176577` | nothing: bus error |
   | `176600`–`176657` | display registers |
   | `176700`–… | keyboard registers (next spec) |
   | `177546` | line clock `LKS` |
@@ -233,7 +274,8 @@ Index 0 is black, so a cleared screen is black in both modes.
   | `177776` | `PSW` |
 
 - **The simulator's predefined names** (at most 6 characters): `SCREEN` = `120000`, `DSPCS`,
-  `DSPFRM`, `DSPPAL`, `DSPVEC` = `320`.
+  `DSPFRM`, `DSPLIN`, `DSPPAL`, `DSPVEC` = `320`, and the ROM's names `FONT`, `DRAWCH`, `DRAWC1`
+  (§11).
 
 ## 7. Reset
 
@@ -242,7 +284,7 @@ Index 0 is black, so a cleared screen is black in both modes.
 | Pixel memory | cleared to 0 | kept |
 | Palette | the table in §4 | kept |
 | `DSPCS` | 0: mode 0, page 0, `IE` and `DONE` clear | `IE` cleared; `MODE`, `PAGE` and `DONE` kept |
-| `DSPFRM`, cycles to the next blank | 0, `frameCycles` | kept (the beam doesn't stop) |
+| `DSPFRM`, the beam (`DSPLIN`) | 0; a new frame starts (in the blank) | kept (the beam doesn't stop) |
 | Latched frame | all black, 64 × 64 | kept |
 | Pending interrupt | withdrawn | withdrawn |
 
@@ -254,6 +296,8 @@ const display = new Display({
   base: 0o176600,         // registers
   vector: 0o320, level: 4,
   frameCycles: 20000,
+  blankCycles: 2500,      // default frameCycles / 8
+  beam: 'instant',        // or 'scan': rows latched as the beam reads them (§5.1)
 });
 const m = new SimpleMachine({ memory: 0o120000, clockCycles: 20000 });
 m.add(display.memory).add(display.control);
@@ -280,21 +324,22 @@ rgb333to888(0o770);                 // [255, 255, 0]; each 0–7 maps through 0,
 
 ## 9. Open questions for the owner
 
-1. ~~**Resolution**~~: both, as modes 0 and 1 (owner, 2026-11-18). Still open: should there be a
-   third mode for bit packing at its purest, such as 128 × 128 at 1 bit per pixel (2 KB a page,
-   two colours: palette 0 and 1)? *Recommendation:* not now. `MODE` keeps bit 3 free for it.
-2. **Colours:** 16 from a palette (this draft) or 256 (a fixed RGB 3-3-2 byte in mode 0, with no
-   palette)? *Recommendation:* 16. It is the same in both modes, a palette teaches indirection,
-   and palette cycling gives cheap animation.
-3. **Speed:** is 20000 cycles per frame right? Mode 1 makes the choice matter more: clearing a
-   page takes 60 % of a frame at 20000. A higher value is more forgiving. A lower value makes
-   the cost of drawing easier to see.
-4. **Tearing:** left out on purpose (§5). Should an option show it, for an advanced lesson?
-5. **A text mode** (a character ROM, 8 × 8 cells) is out of scope for now, and the console stays
-   the place for text. Should the simulator have a small 8 × 8 font as an example *program*
-   instead?
-6. **RAM:** 40 KB in the simulator, to make room for the 16 KB window. That seems plenty for
-   students. A host that wants more can put the window elsewhere.
+Answered on 2026-11-18: resolution (both, §3), colours (16 from a palette), speed (20000 cycles
+per frame), tearing (an option, §5.1), and text (a font in ROM, §11).
+
+1. **A third mode** for bit packing at its purest, such as 128 × 128 at 1 bit per pixel (2 KB a
+   page, two colours: palette entries 0 and 1)? *Recommendation:* not now. `MODE` keeps bit 3 free
+   for it.
+2. **RAM:** 40 KB in the simulator, to make room for the 16 KB window. That seems plenty for
+   students. A host that wants more can place the window elsewhere.
+3. **The font's glyphs** (§11): draw our own 8 × 8 font, or start from a public-domain one? Not
+   from a proprietary ROM. *Recommendation:* start from a public-domain font and keep its
+   licence line in the ROM source.
+4. **`DRAWCH` background** (§11): only glyph pixels are painted (this draft), or a second colour
+   fills the rest of the cell? *Recommendation:* glyph pixels only. Clearing a cell first is an
+   easy exercise, and drawing text over a picture works.
+5. **More in the ROM** (a `PLOT`, a `LINE`)? *Recommendation:* text only. Plotting and lines are
+   the students' own first programs.
 
 ## 10. Tests (written first)
 
@@ -310,14 +355,106 @@ rgb333to888(0o770);                 // [255, 255, 0]; each 0–7 maps through 0,
   ignored.
 - **The registers.** `DONE` is set at each blank and cleared only by writing it as 0. `DSPFRM`
   counts and wraps. Bit 3 and a write to the high byte of `DSPCS` are ignored. The hole at
-  `176604`–`176616` is a bus error. Palette values are masked to 9 bits.
+  `176606`–`176616` is a bus error. Palette values are masked to 9 bits. `DSPLIN` reads
+  `177777` during the blank and then the row the beam reads next, at the cycles of §5.1, in both
+  modes.
 - **Interrupts.** Only at the blank, only with `IE` set, and withdrawn when `IE` is cleared.
   `WAIT` wakes at the blank. A polling `VSYNC` loop sees `DONE` in the cycle of the blank
   (`nextEvent`).
+- **The scanning beam.** A write to row r before the beam reaches it shows in this frame, and one
+  after shows in the next. Drawing on the shown page while the beam passes gives the expected
+  torn picture. A palette change at row r colours rows r onwards. A change made in the blank
+  never tears. `PAGE` and `MODE` change only at the blank. The instant beam gives the same
+  pictures as before for every example.
 - **Reset.** Power-up and `RESET` behave as in §7.
 - **State.** `state()` → `JSON.stringify` → `load()` gives the same run. Two runs of the same
   program give the same frames.
 - **Example programs** (`src/simulator/examples.ts`), checked by their latched frame instead of
   console text: a diagonal and a filled rectangle in mode 0, a bouncing pixel with double
-  buffering, `PLOT1` drawing a circle in mode 1, and palette cycling.
+  buffering, `PLOT1` drawing a circle in mode 1, palette cycling, and a sky gradient by racing
+  the beam (scanning beam).
 - **README.** `readme-examples.test.ts` runs the code blocks in the README's display section.
+- **`Rom`** (`tests/blue11/devices.test.ts`): reads what was loaded, a write is a bus error
+  (trap 4), and a load that doesn't fit throws.
+- **The simulator's ROM** (in the simulator's tests): it assembles without errors or warnings,
+  and its jump table and `FONT` are at the addresses in §11. `DRAWCH` and `DRAWC1` draw `A`
+  exactly as its glyph bits say, paint glyph pixels only, move R1 to the next cell and keep the
+  other registers. Every printable character (`40`–`176`) except the space has at least one pixel
+  set. The cycles for one character are pinned, so a change in cost is seen.
+
+## 11. Text: an 8 × 8 font in ROM (the simulator)
+
+There is no text mode in the hardware. The simulator has a **ROM** with a font and two short
+routines that draw it. They are written in Blue-11 and their source is shown in the simulator
+(a "ROM" tab with the listing), so students can see how text on a bitmap display works, call the
+routines, and then copy them into their own programs and change them.
+
+- **What goes where.** The library gets a general **`Rom` device**: read-only memory whose
+  contents the host loads, where writes are bus errors (trap 4). This is HackCode's
+  `Rom` (`src/core/robot.ts`) made general, with its base and size as options, and HackCode then
+  uses it. The ROM's *contents* (the font and the routines) belong to the simulator, not the
+  library (library rule 5): its source is `apps/simulator/rom.mac`, assembled when the page
+  loads.
+- **Layout** (`160000`–`167777`, 4 KB):
+
+  | Address | Name | What |
+  | :--- | :--- | :--- |
+  | `160000` | `DRAWCH` | `JMP` to the mode 0 routine |
+  | `160004` | `DRAWC1` | `JMP` to the mode 1 routine |
+  | `160010`–`161777` | | the routines |
+  | `162000`–`163777` | `FONT` | 128 characters × 8 bytes |
+  | `164000`–`167777` | | free (kept for later) |
+
+  The jump table keeps the entry points fixed even when the routines change.
+- **The font.** Character c is at `FONT + c*10`: 8 bytes, the top row first, and **bit 7 is the
+  leftmost pixel**. In octal, `c*10` is c with a 0 after it, so `A` (`101`) is at
+  `162000 + 1010 = 163010`. Codes `40`–`176` are printable ASCII. Codes `0`–`37` and `177` are
+  blank.
+- **`DRAWCH`** (mode 0): R0 = the character, R1 = the address of the cell's top-left pixel, R2 =
+  the colour. Only pixels where the glyph has a 1 are painted. On return, R1 points to the next
+  cell to the right (+`10`), and the other registers are unchanged. A screen holds 8 × 8
+  characters. This is the routine, as the ROM listing shows it:
+
+  ```
+  DRAWCH: MOV  R0, -(SP)
+          MOV  R3, -(SP)
+          MOV  R4, -(SP)
+          MOV  R5, -(SP)
+          BIC  #177600, R0        ; 0–177 only
+          ASL  R0
+          ASL  R0
+          ASL  R0                 ; R0 * 10: the glyph's offset in the font
+          ADD  #FONT, R0          ; R0 = the glyph's top row
+          MOV  #10, R4            ; 8 rows
+  1$:     MOVB (R0)+, R3          ; one row of the glyph: bit 7 is the leftmost pixel
+          MOV  #10, R5            ; 8 pixels
+  2$:     ASLB R3                 ; the next pixel into C
+          BCC  3$                 ; 0: leave the pixel as it is
+          MOVB R2, (R1)           ; 1: paint it
+  3$:     INC  R1                 ; one pixel to the right
+          SOB  R5, 2$
+          ADD  #100-10, R1        ; one row down, back to the cell's left edge
+          SOB  R4, 1$
+          SUB  #1000-10, R1       ; back up 8 rows, and one cell to the right
+          MOV  (SP)+, R5
+          MOV  (SP)+, R4
+          MOV  (SP)+, R3
+          MOV  (SP)+, R0
+          RTS  PC
+  ```
+
+  Calling it: `JSR PC, @#DRAWCH`. One character costs about 400 cycles (measured), so a full screen of 64
+  characters takes about 1.3 frames. That is worth knowing, and a reason to redraw only the text
+  that changed.
+- **`DRAWC1`** (mode 1): the same arguments, but R1 is the address of the byte that holds the
+  cell's top-left pixel (cells start at an even x). It has the same structure as `DRAWCH`, but
+  each byte of the screen takes two glyph bits: the first goes into bits 3–0 and the second into
+  bits 7–4. On return R1 has moved 4 bytes to the right. A screen holds 16 × 16 characters.
+- **Showcase examples:**
+  - *Hello* (`DRAWCH` in mode 0).
+  - *Font viewer* (all 96 printable characters, mode 1).
+  - *My own DRAWCH*: the routine copied into the program and changed to give every row of a
+    glyph its own colour. It shows that the ROM is just code the student can read and rewrite.
+- **The glyphs** are either drawn for Blue-11 or taken from a public-domain font, with the
+  source and licence on the ROM source's first lines (open question 3). They are never copied
+  from a proprietary ROM.

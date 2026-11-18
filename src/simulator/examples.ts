@@ -1,6 +1,6 @@
 /**
  * Example programs for a `SimpleMachine` (DL11 console, KW11-L clock). The standalone
- * simulator page they were written for (docs/BLUE11_CPU.md decision 19) is not part of
+ * simulator page they were written for (docs/ROADMAP.md §1, step 8) is not part of
  * HackCode; tests/blue11/examples.test.ts runs each one and checks it prints `expect`.
  */
 

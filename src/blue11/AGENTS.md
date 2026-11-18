@@ -2,7 +2,7 @@
 
 `src/blue11/` is a **standalone, reusable library**: CPU, assembler (a subset of the original syntax),
 disassembler, device bus. HackCode (the game around it) is its first user, not its owner.
-User documentation: [`README.md`](README.md). Design rationale: `docs/BLUE11_CPU.md` §14.
+User documentation: [`README.md`](README.md). Design and rationale: `docs/BLUE11_MACHINE.md` (§9: the library boundary); specified devices: `docs/BLUE11_DISPLAY.md`, `docs/BLUE11_KEYBOARD.md`.
 
 ## Rules (the first three are enforced by `tests/blue11/boundary.test.ts`)
 

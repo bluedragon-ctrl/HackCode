@@ -39,12 +39,14 @@ in the README as a departure from the original machine.
    a US keyboard, with letters and digits as ASCII. A key map has one byte per key at `177000`
    (`200` = down). An event queue of 16 presses and releases (`KBDCS`, `KBDBUF` at `176700`)
    interrupts at vector `330`. Exact replays come from an input log of (cycle, event). The DL11
-   console stays the device for typed text. *Draft: the owner reviews it and answers its §9.*
-3. **Split the docs:** the library's parts of `BLUE11_CPU.md` (§1, §3–§5, §9, §11, §14.1–§14.3)
-   become the machine spec that moves with the library. Rover's history and HackCode's notes
-   stay here.
+   console stays the device for typed text. *Decided (2026-11-18).*
+3. ~~**Split the docs**~~ (done, 2026-11-18): [`BLUE11_MACHINE.md`](BLUE11_MACHINE.md) is the
+   machine's design (principle, assembler, cycles, flags, traps and interrupts, multiply and
+   divide, departures, the library's boundary). It moves with the library. `BLUE11_CPU.md` stays
+   here as Rover's history, and its library sections point to the new document.
 4. **Its own repository** (the owner creates `blue11`; this session can't): extract
-   `src/blue11/`, `tests/blue11/`, `src/simulator/` and the new docs with their history
+   `src/blue11/`, `tests/blue11/`, `src/simulator/` and the docs `BLUE11_MACHINE.md`,
+   `BLUE11_DISPLAY.md`, `BLUE11_KEYBOARD.md` with their history
    (`git filter-repo`). Layout: npm workspaces `packages/blue11` (the library) and
    `apps/simulator`. Also: a license, `AGENTS.md`, CI (tests, build, Pages for the simulator,
    npm publish on a tag), an ESM build with types, the `blue11/codemirror` subpath with

@@ -1,6 +1,6 @@
 # Blue-11 keyboard: keys for games (spec, not built)
 
-Status: **draft for the owner's review** (2026-11-18). This device is part of the Blue-11
+Status: **decided, not built** (2026-11-18). This device is part of the Blue-11
 library and moves with it to its own repository (ROADMAP.md §1). Its first user is the
 standalone simulator, together with the display ([`BLUE11_DISPLAY.md`](BLUE11_DISPLAY.md)).
 
@@ -231,19 +231,19 @@ keyCode('KeyA');                           // 0o101: a browser KeyboardEvent.cod
 The rest of the map is in [`BLUE11_DISPLAY.md`](BLUE11_DISPLAY.md) §6. The simulator's names are
 `KBDCS`, `KBDBUF`, `KBDKEY` = `177000`, `KBDVEC` = `330`, and the `K.` names of §3.
 
-## 9. Open questions for the owner
+## 9. Decisions
 
-1. **More keys:** F1–F10, Home, End, Page Up and Down, and Insert, in the free codes `141`–`176`?
-   Browsers keep some of them for themselves (F5, F11, F12). *Recommendation:* not in v1. The keys
-   above are enough for games and menus, and every one of them works in a browser.
-2. **A byte per key** (this draft) or a bitmap of 8 words? *Recommendation:* bytes, for the
-   reasons in §4.
-3. **The queue's length:** 16 events? *Recommendation:* 16. It is small enough to overflow in an
-   exercise and large enough for normal play at one read per frame.
-4. **Console and keyboard both** receive a key (§7.1)? *Recommendation:* yes. The other choice, a
-   switch between "text" and "game" input, is one more thing students would have to understand.
-5. **A mouse** (position and buttons, in the same style)? *Recommendation:* later, as its own
-   device, if students ask for it.
+The owner accepted every recommendation on 2026-11-18:
+
+- **No more keys in v1:** no F1–F10, Home, End, Page Up or Down, or Insert. Codes `141`–`176`
+  stay free for them. Browsers keep some of these keys (F5, F11, F12), and the keys of §3 are
+  enough for games and menus.
+- **A byte per key**, not a bitmap (§4). A bitmap is an exercise built from the event queue.
+- **A queue of 16 events:** small enough to overflow in an exercise, and large enough for normal
+  play at one read per frame.
+- **Both the console and the keyboard receive every key** (§7.1), so students don't need a switch
+  between "text" and "game" input.
+- **A mouse later,** as its own device, if students ask for it.
 
 ## 10. Tests (written first)
 

@@ -202,7 +202,7 @@ describe('blue11 CPU: flags', () => {
   });
 });
 
-describe('blue11 CPU: cycles per bus access (BLUE11_CPU.md §4)', () => {
+describe('blue11 CPU: cycles per bus access (BLUE11_MACHINE.md §4)', () => {
   const cost = (line: string, opts = {}): number => {
     const { m } = boot(`${line}\nCOUNT: .WORD 0\nVAL: .WORD 0`, opts);
     m.cpu.r[1] = 0o2000;

@@ -5,7 +5,7 @@ import { assembleOk } from '../helpers/asm';
 import { boot, err, runAsm, words, wordsOf } from './helpers';
 
 describe('blue11 assembler: encoding', () => {
-  it('the listing example of BLUE11_CPU.md §3.5', () => {
+  it('the listing example of BLUE11_MACHINE.md §3.5', () => {
     const syms = { DRVCS: 0o176400, DRVDIR: 0o176404, DRVCNT: 0o176406, GO: 1 };
     const a = assembleOk(`
         CLR  R1
@@ -182,7 +182,7 @@ describe('blue11 disassembler', () => {
   });
 });
 
-describe('blue11 programs from the design (BLUE11_CPU.md §9; src/simulator/examples.ts)', () => {
+describe('blue11 programs from the design (BLUE11_MACHINE.md §7; src/simulator/examples.ts)', () => {
   it.each([[7, 9], [123, 100], [0, 55], [255, 255], [1000, 65]])('MUL16 %i × %i', (a, b) => {
     const { cpu } = runAsm(` MOV #${a}., R0\n MOV #${b}., R1\n MOV #77, R2\n JSR PC, MUL16\n HALT\n${MUL16}`);
     expect(cpu.r[0]).toBe((a * b) & 0xffff);

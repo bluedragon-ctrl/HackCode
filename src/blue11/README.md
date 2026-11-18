@@ -3,7 +3,7 @@
 A self-contained TypeScript library. The Blue-11 implements the PDP-11 instruction set (a
 subset of its assembler syntax): the /40 model's set with the EIS option, an assembler, a
 disassembler, a bus with pluggable memory-mapped devices, and DEC's console and line clock. No dependencies. HackCode is its first user, not its owner.
-Design rationale: [`docs/BLUE11_CPU.md`](../../docs/BLUE11_CPU.md) §14.
+Design and rationale: [`docs/BLUE11_MACHINE.md`](../../docs/BLUE11_MACHINE.md); devices to come: [`BLUE11_DISPLAY.md`](../../docs/BLUE11_DISPLAY.md), [`BLUE11_KEYBOARD.md`](../../docs/BLUE11_KEYBOARD.md).
 
 Every code block in this file is run by `tests/blue11/readme-examples.test.ts`, and that
 test fails if a block here isn't in it. If you change an example, change both.

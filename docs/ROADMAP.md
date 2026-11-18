@@ -34,11 +34,12 @@ in the README as a departure from the original machine.
    mode 0 is 64 × 64 at a byte per pixel (4 pages), mode 1 is 128 × 128 at 4 bits per pixel
    (2 pages). Both use a 16-colour RGB 3-3-3 palette, with a vertical-blank flag and interrupt,
    and an optional scanning beam that tears. An 8 × 8 font and the routines that draw it are in
-   the simulator's ROM. *Mostly decided (2026-11-18). Its §9 has the last open questions.*
-2. **Keyboard spec** (`docs/BLUE11_KEYBOARD.md`): which keys are down (for games), and key
-   presses and releases as scan codes queued with an interrupt, at `176700`. The console
-   (DL11) stays the device for typed text. Input is recorded as (cycle, event), so a run can be
-   replayed. Keyboard focus: the editor or the running program.
+   the simulator's ROM. *Decided (2026-11-18).*
+2. **Keyboard spec:** [`BLUE11_KEYBOARD.md`](BLUE11_KEYBOARD.md). Key codes are positions on
+   a US keyboard, with letters and digits as ASCII. A key map has one byte per key at `177000`
+   (`200` = down). An event queue of 16 presses and releases (`KBDCS`, `KBDBUF` at `176700`)
+   interrupts at vector `330`. Exact replays come from an input log of (cycle, event). The DL11
+   console stays the device for typed text. *Draft: the owner reviews it and answers its §9.*
 3. **Split the docs:** the library's parts of `BLUE11_CPU.md` (§1, §3–§5, §9, §11, §14.1–§14.3)
    become the machine spec that moves with the library. Rover's history and HackCode's notes
    stay here.

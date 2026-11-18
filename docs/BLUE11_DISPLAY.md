@@ -1,6 +1,6 @@
 # Blue-11 display: a memory-mapped graphics device (spec, not built)
 
-Status: **draft for the owner's review** (2026-11-18). This device is part of the Blue-11
+Status: **decided, not built** (2026-11-18). This device is part of the Blue-11
 library, not of HackCode, and moves with the library to its own repository (ROADMAP.md §1).
 Its first user is the standalone simulator for students. HackCode may add it later but does
 not need it.
@@ -14,7 +14,7 @@ not need it.
   with routines that draw characters, as readable source that students can study and copy (§11).
 
 The companion devices are already built: the DL11 console and the KW11-L line clock
-(`src/blue11/devices.ts`). The keyboard device is specified next (ROADMAP.md §1, step 2).
+(`src/blue11/devices.ts`). The keyboard is specified in [`BLUE11_KEYBOARD.md`](BLUE11_KEYBOARD.md).
 
 ## 1. Goals
 
@@ -268,7 +268,8 @@ like that. The default, `beam: 'instant'`, does not tear.
   | `160000`–`167777` | ROM: the font and the drawing routines (§11). Writes trap to 4 |
   | `170000`–`176577` | nothing: bus error |
   | `176600`–`176657` | display registers |
-  | `176700`–… | keyboard registers (next spec) |
+  | `176700`–`176703` | keyboard registers ([`BLUE11_KEYBOARD.md`](BLUE11_KEYBOARD.md)) |
+  | `177000`–`177177` | keyboard: one byte per key |
   | `177546` | line clock `LKS` |
   | `177560`–`177567` | console (DL11) |
   | `177776` | `PSW` |
@@ -322,24 +323,21 @@ rgb333to888(0o770);                 // [255, 255, 0]; each 0–7 maps through 0,
 - **A possible `SimpleMachine` option:** `display: true` sets this map and these defaults, so
   simple hosts need not repeat them. It is general and not host-specific, so rule 5 allows it.
 
-## 9. Open questions for the owner
+## 9. Decisions
 
-Answered on 2026-11-18: resolution (both, §3), colours (16 from a palette), speed (20000 cycles
-per frame), tearing (an option, §5.1), and text (a font in ROM, §11).
+All answered by the owner on 2026-11-18:
 
-1. **A third mode** for bit packing at its purest, such as 128 × 128 at 1 bit per pixel (2 KB a
-   page, two colours: palette entries 0 and 1)? *Recommendation:* not now. `MODE` keeps bit 3 free
-   for it.
-2. **RAM:** 40 KB in the simulator, to make room for the 16 KB window. That seems plenty for
-   students. A host that wants more can place the window elsewhere.
-3. **The font's glyphs** (§11): draw our own 8 × 8 font, or start from a public-domain one? Not
-   from a proprietary ROM. *Recommendation:* start from a public-domain font and keep its
-   licence line in the ROM source.
-4. **`DRAWCH` background** (§11): only glyph pixels are painted (this draft), or a second colour
-   fills the rest of the cell? *Recommendation:* glyph pixels only. Clearing a cell first is an
-   easy exercise, and drawing text over a picture works.
-5. **More in the ROM** (a `PLOT`, a `LINE`)? *Recommendation:* text only. Plotting and lines are
-   the students' own first programs.
+- **Resolution:** both 64 × 64 and 128 × 128, as modes 0 and 1 (§3). **No third mode for now**
+  (such as 128 × 128 at 1 bit per pixel). `MODE` keeps bit 3 free for one.
+- **Colours:** 16 from a palette.
+- **Speed:** 20000 cycles per frame.
+- **Tearing:** available as an option (§5.1).
+- **Text:** a font in ROM (§11).
+- **RAM:** 40 KB in the simulator is enough. A host that wants more can put the window elsewhere.
+- **The font's glyphs:** start from a public-domain 8 × 8 font. Its licence line goes in the ROM
+  source. Nothing is copied from a proprietary ROM.
+- **`DRAWCH`:** paints only the glyph's pixels. Clearing a cell first is an exercise.
+- **The ROM:** only text. Plotting and lines are the students' own first programs.
 
 ## 10. Tests (written first)
 
@@ -456,5 +454,5 @@ routines, and then copy them into their own programs and change them.
   - *My own DRAWCH*: the routine copied into the program and changed to give every row of a
     glyph its own colour. It shows that the ROM is just code the student can read and rewrite.
 - **The glyphs** are either drawn for Blue-11 or taken from a public-domain font, with the
-  source and licence on the ROM source's first lines (open question 3). They are never copied
+  source and licence on the ROM source's first lines (§9). They are never copied
   from a proprietary ROM.

@@ -5,7 +5,7 @@
  * run on the test map: tests/ui/help.test.ts.
  */
 
-import { octal } from '../../blue11';
+import { octal } from 'blue11';
 import {
   CHARGE_RATE, COST, DRAIN, ENERGY_MAX, INVENTORY_SLOTS, LASER_DAMAGE, LASER_RANGE, MEMORY, MONSTERS, REG, ROBOT_HP,
   SCAN_RADIUS, TICK_CYCLES, TICKS, VECTOR,

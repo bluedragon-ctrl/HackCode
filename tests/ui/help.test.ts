@@ -4,7 +4,7 @@
  * and the `run` examples run on the test map to a HALT of their own (not a trap's).
  */
 import { describe, expect, it } from 'vitest';
-import { assemble, INSTRUCTIONS } from '../../src/blue11';
+import { assemble, INSTRUCTIONS } from 'blue11';
 import { SYMBOLS } from '../../src/core';
 import { HELP, inComment, parseInline, SECTIONS, wordAt, type Block, type Entry } from '../../src/ui/help';
 import { blockTexts } from '../../src/ui/help/model';

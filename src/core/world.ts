@@ -12,7 +12,7 @@
  * stays open and is finished by the next run.
  */
 
-import type { RunResult, TrapInfo } from '../blue11';
+import type { RunResult, TrapInfo } from 'blue11';
 import { DRAIN, TICK_CYCLES } from './constants';
 import { Grid } from './grid';
 import { dropFor, TYPE } from './objects';

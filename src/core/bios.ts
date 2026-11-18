@@ -4,7 +4,7 @@
  * and its source is shown to the player, so it is written to be read.
  */
 
-import type { AssembleResult } from '../blue11';
+import type { AssembleResult } from 'blue11';
 import { assembleBuiltIn } from './builtin';
 import { MEMORY } from './constants';
 import { SYMBOLS } from './symbols';

@@ -1,6 +1,6 @@
 /**
  * One help entry per instruction, grouped. Every name in the instruction table
- * (`INSTRUCTIONS`, src/blue11/isa.ts) must be in exactly one entry: tests/ui/help.test.ts.
+ * (`INSTRUCTIONS` from the `blue11` package) must be in exactly one entry: tests/ui/help.test.ts.
  *
  * Flags: four characters for N Z V C. `*` set from the result, `0` / `1` cleared / set,
  * `-` unchanged. Anything longer is shown as it is.

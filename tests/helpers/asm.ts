@@ -1,4 +1,4 @@
-import { assemble, type AsmError, type AssembleOptions, type AssembleResult } from '../../src/blue11';
+import { assemble, type AsmError, type AssembleOptions, type AssembleResult } from 'blue11';
 
 /** `line:column message`, one per line. */
 export const formatErrors = (errors: readonly AsmError[]): string =>

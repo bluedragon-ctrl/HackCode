@@ -16,7 +16,7 @@
  * blocked by the robot bites it: the robot takes the kind's contact damage.
  */
 
-import { BUS_ERROR, DeviceMachine, type AssembleResult, type Device, type Program } from '../blue11';
+import { BUS_ERROR, DeviceMachine, type AssembleResult, type Device, type Program } from 'blue11';
 import { assembleBuiltIn } from './builtin';
 import { DX, DY, ERR, FN, HEADING, REG, SCAN_RANGE_SQ, TICK_CYCLES, VECTOR } from './constants';
 import { beam, CsrDevice, done, drive, lineOfSight, type Outcome } from './devices';

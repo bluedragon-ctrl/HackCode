@@ -1,6 +1,6 @@
 /** The BIOS in ROM (DESIGN.md §4): EMT calls, their conventions, and the vector set on load. */
 import { describe, expect, it } from 'vitest';
-import { VEC } from '../../src/blue11';
+import { VEC } from 'blue11';
 import { BIOS_CALL, bios, biosEntry, ENERGY_MAX, ERR, HEADING, MEMORY, OBJECTS, SYMBOLS, TYPE, type World } from '../../src/core';
 import { asm, load, loadOn, r, reg, world } from './helpers';
 

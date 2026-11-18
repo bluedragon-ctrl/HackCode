@@ -3,7 +3,7 @@
  * Step / Step tick commands (DESIGN.md §3 "Edit and continue"). No DOM, so it is tested.
  */
 
-import { assemble, type AsmError, type AssembleResult, type TrapInfo } from '../blue11';
+import { assemble, type AsmError, type AssembleResult, type TrapInfo } from 'blue11';
 import { parseMap, SYMBOLS, type MapOptions, type TickReason, type TickResult, type World } from '../core';
 import { checkRules, EXIT_GOAL, type Goal, type Rules } from './lessons/model';
 

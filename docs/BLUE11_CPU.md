@@ -1,16 +1,16 @@
-> **Status in HackCode (2026-11-16).** This document comes from the earlier Rover project,
-> where the Blue-11 library was designed and built. It is kept for the library's design
-> rationale; the game here is designed in [`DESIGN.md`](DESIGN.md).
+> **Status in HackCode (2026-11-18).** This document comes from the earlier Rover project,
+> where the Blue-11 library was designed and built. It is kept as history.
 >
-> - **Still valid for the library** (`src/blue11/`, cited by its README, AGENTS.md and tests):
->   §1, §3 (assembler), §4 (cycles), §5 (flags), §9.1–§9.3 (MUL16 / DIV16, EIS, instruction
->   subset), §11 as far as §11's last paragraph assigns departures to the library, and
->   §14.1–§14.3 (library boundary, interface, rules).
-> - **Rover's game, not HackCode's:** §0, §2, §6–§8, §10, §12, §13's comparison with
->   Rover-ASM, §14.4–§14.7, §15, §16 — rovers, firmware and program slots, the gate,
->   photos, chassis, Rover's memory map (ROM at `160000`) and its 64-cycle tick. HackCode's
->   memory map, ROM, devices and tick are in DESIGN.md §3–§5.
-> - Linked documents `BLUE11_IO.md` and `ASSEMBLER_CORE.md`, and the Rover files named in
+> - **The library's design is now in [`BLUE11_MACHINE.md`](https://github.com/bluedragon-ctrl/Blue11/blob/main/docs/BLUE11_MACHINE.md)**, in
+>   the library's own repository, [Blue11](https://github.com/bluedragon-ctrl/Blue11); HackCode
+>   uses it as the npm package `blue11` (ROADMAP.md §1). The sections that described the library
+>   (§1, §3, §4, §5, §9, §11 as far as it concerns the library, §13, §14.1–§14.3) now point
+>   there.
+> - **Rover's game, not HackCode's:** §0, §2, §6–§8, §10, §12, §14.4–§14.7, §15, §16 cover
+>   rovers, firmware and program slots, the gate, photos, chassis, Rover's memory map (ROM at
+>   `160000`) and its 64-cycle tick. HackCode's memory map, ROM, devices and tick are in
+>   DESIGN.md §3–§5.
+> - The linked documents `BLUE11_IO.md` and `ASSEMBLER_CORE.md`, and the Rover files named in
 >   §14.4–§14.7 (`src/core/machine/`, `tests/blue11-*.test.ts`), are not in this repository.
 
 # M15 — Blue-11: the CPU (design, built)
@@ -67,23 +67,16 @@ Owner answers to §16 (2026-11-15, second round):
 19. **A standalone simulator page** (`simulator.html`) is built with the library in slice 2:
     editor, registers and flags, memory, console, step / run / breakpoints. It proves the
     library stands alone and lets the owner try the CPU before it is in the game.
-    *HackCode:* the page was not carried over; its example programs are in
-    `src/simulator/examples.ts`, run by the tests.
+    *HackCode:* the page was not carried over. Its example programs moved with the library to
+    Blue11 (`packages/blue11/examples/examples.ts`, run by its tests), where the student
+    simulator is being built.
 
 M14 is frozen where it is: its last item (boot ROM with safe mode) is not built in
 Rover-ASM. It moves into this milestone's ROM (§10).
 
 ## 1. Principle
 
-> A small, honest computer. Eight registers, one address space, memory reached through
-> eight addressing modes, devices reached through memory. Every instruction is one to
-> three 16-bit words whose fields you can read in octal.
-
-The original machine (1970) is the one Unix and C grew up on; C's `*p++` is its
-autoincrement mode. It is small enough to learn whole and regular enough that the
-instruction set fits on one card. We take its instruction set, encoding, flags, traps and
-assembler syntax as they were, and change only what the game needs (§11 lists every
-departure).
+Moved to [`BLUE11_MACHINE.md`](https://github.com/bluedragon-ctrl/Blue11/blob/main/docs/BLUE11_MACHINE.md) §1.
 
 ## 2. The machine
 
@@ -103,178 +96,15 @@ error (trap to 4), as on the real machine.
 
 ## 3. Assembler: Blue-11 assembly (a subset of the original assembler)
 
-### 3.1 Lines
-
-```
-label:  OPCODE  src, dst        ; comment
-```
-
-* **Source before destination**: `MOV #5, R0` puts 5 into R0. `CMP a, b` computes
-  `a − b` and sets the flags (so `CMP R0, #10` / `BLT` means "R0 < 10").
-* Names: **one to six** letters, digits, `.` and `$` (not starting with a digit),
-  case-insensitive, as in the original assembler (decision 17). A seventh character is an error,
-  not silently dropped.
-* **Local labels** `1$` … `99$` are valid between two ordinary labels. Loops and branches
-  inside a routine use them, so routines don't fight over names like `loop`:
-
-  ```
-  MUL16:  ...
-  1$:     TST  R1         ; this 1$ belongs to MUL16
-  DIV16:  ...
-  1$:     ...             ; a different 1$
-  ```
-
-### 3.2 Directives and symbols
-
-| Write | Means | Was |
-| :--- | :--- | :--- |
-| `NAME = 5` | a constant symbol | `CONST NAME 5` |
-| `DIR = %1` | a register symbol: `DIR` means `R1` | `ALIAS r1 dir` |
-| `.WORD 1, 2, X+4` | 16-bit words | `DATA` (bytes) |
-| `.BYTE 1, 2, 377` | bytes | `DATA` |
-| `.ASCII /TEXT/`, `.ASCIZ /TEXT/` | characters (`.ASCIZ` adds a 0 byte) | – |
-| `name: .BLKW 4` / `.BLKB 10` | reserve 4 words / 8 bytes (zero in the image) | `VAR name 8` |
-| `.EVEN` | align to a word boundary after bytes | – |
-| `. = . + 20` | move the location counter | – |
-
-Device register names (`BAT`, `DRVCS`, …), bit names (`GO`, `DONE`, …), status codes
-(`OK`, `E.BLK`, …), directions and tile names are **predefined symbols**, like DEC's
-system macro library. Reference lists them; [`BLUE11_IO.md`](BLUE11_IO.md) defines them.
-
-**Expressions** are evaluated strictly **left to right**, with `< >` for grouping, as in
-the original assembler: `2+3*4` is 20, `2+<3*4>` is 14. Operators: `+ - * /`, `&` (and), `!` (or).
-Players meet this once and remember it; it is part of the period charm.
-
-Not in v1: `.MACRO`, `.PSECT`, `.GLOBL`, conditional assembly. One source file per slot.
-
-### 3.3 Numbers: octal
-
-* `20` is **octal** (16 decimal); `20.` is decimal 20. `^D20`, `^O20` and `^B10100` name
-  the radix explicitly; `'A` is the code of a character.
-* The listing, dumps, the debugger and Reference show **words as six octal digits**.
-  This is the point of octal on the original machine: the instruction fields are three bits wide,
-  so every octal digit is one field (§3.5).
-* Port values that people think of in decimal (battery %, angles, tiles) are written with
-  a dot in the shipped code: `CMP @#BAT, #20.`
-
-### 3.4 The eight addressing modes
-
-Each operand is a 6-bit field: **mode** (3 bits) and **register** (3 bits).
-
-| Mode | Syntax | Name | Operand is | C equivalent |
-| :--- | :--- | :--- | :--- | :--- |
-| 0 | `R3` | register | R3 itself | `r3` |
-| 1 | `(R3)` | register deferred | the word at address R3 | `*p` |
-| 2 | `(R3)+` | autoincrement | the word at R3, then R3 += 2 (1 for bytes) | `*p++` |
-| 3 | `@(R3)+` | autoincrement deferred | the word whose address is at R3, then R3 += 2 | `**pp++` |
-| 4 | `-(R3)` | autodecrement | R3 −= 2 (1 for bytes), then the word at R3 | `*--p` |
-| 5 | `@-(R3)` | autodecrement deferred | R3 −= 2, then the word whose address is at R3 | `**--pp` |
-| 6 | `X(R3)` | index | the word at R3 + X (X is the next instruction word) | `p[x]` |
-| 7 | `@X(R3)` | index deferred | the word whose address is at R3 + X | `*p[x]` |
-
-The same modes on `PC` (R7) give the four forms everyone uses:
-
-| Syntax | Really | Means |
-| :--- | :--- | :--- |
-| `#100` | `(PC)+` | **immediate**: the next word is the value |
-| `@#BAT` | `@(PC)+` | **absolute**: the next word is the address (device registers, fixed tables) |
-| `LABEL` | `X(PC)` | **relative**: the address, as a distance from here (position-independent) |
-| `@LABEL` | `@X(PC)` | relative deferred: the word at `LABEL` is a pointer |
-
-And on `SP` (R6) the stack: `MOV R2, -(SP)` pushes, `MOV (SP)+, R2` pops. There are no
-`PUSH` / `POP` instructions; they are just addressing modes.
-
-Rule of thumb for players: **`#` is a value, `@#` is an address.** `MOV #BAT, R0` loads
-the *address* of the battery register; `MOV @#BAT, R0` loads the battery level.
-
-### 3.5 Encoding, read in octal
-
-`MOV R1, R2` is `010102`: opcode `01` (MOV), source `01` (mode 0, R1), destination `02`
-(mode 0, R2). A listing (traditional style: address, words, source):
-
-```
-002000  005001                  CLR  R1
-002002  012737  000003  176406  MOV  #3, @#DRVCNT     ; 01 = MOV, 27 = #, 37 = @#
-002010  010137  176404          MOV  R1, @#DRVDIR
-002014  012737  000001  176400  MOV  #GO, @#DRVCS
-002022  105737  176400  2$:     TSTB @#DRVCS          ; 1057 = TSTB, 37 = @#
-002026  100402                  BMI  3$               ; 1004 = BMI, offset +2 words
-002030  000001                  WAIT
-002032  000773                  BR   2$               ; 0004 = BR, offset −5 (373)
-```
-
-Formats (all real): double operand `oSSDD`, single operand `ooooDD`, branch `bbbxxx` (8-bit
-signed word offset: ±127 words), `JSR R, DD`, `RTS R`, `SOB R, offset` (6-bit backwards).
+Moved to [`BLUE11_MACHINE.md`](https://github.com/bluedragon-ctrl/Blue11/blob/main/docs/BLUE11_MACHINE.md) §3 (lines, directives, octal, addressing modes, encoding; §3.5 is still the listing example the tests check). Rover's predefined symbols were in `BLUE11_IO.md`.
 
 ## 4. Cycles: one per bus access
 
-Every trip to memory costs **1 cycle**: the instruction word, each extra word (an
-immediate, an address, an index), each operand read and each operand write. Work inside
-the CPU is free.
-
-| Operand | Extra cycles (source) | Extra cycles (destination) |
-| :--- | :--- | :--- |
-| `R` (mode 0) | 0 | 0 |
-| `(R)`, `(R)+`, `-(R)` | 1 read | 1 read and/or 1 write |
-| `@(R)+`, `@-(R)` | 2 (pointer + read) | 1 pointer + read / write |
-| `X(R)`, `LABEL` | 2 (index word + read) | 1 index word + read / write |
-| `@X(R)`, `@LABEL` | 3 | 2 + read / write |
-| `#n` | 1 (the word) | – |
-| `@#a` | 2 (address + read) | 1 address + read / write |
-
-A destination is **read** if the instruction uses its old value (`ADD`, `INC`, `BIC`,
-`CMP`, `TST`, …) and **written** if it changes it (`MOV`, `CLR`, `ADD`, …): `MOV` only
-writes, `CMP` / `TST` / `BIT` only read, `ADD` / `INC` do both.
-
-| Instruction | Cycles |
-| :--- | :--- |
-| `MOV R1, R2` | 1 |
-| `MOV #5, R0` | 2 |
-| `MOVB (R1)+, (R2)+` | 3 |
-| `INC @#COUNT` | 4 |
-| `CMP @#BAT, #20.` | 4 |
-| branches, `SOB`, `WAIT`, `HALT`, flag instructions | 1 |
-| `JSR PC, X` | 3 (fetch, displacement, push) |
-| `RTS PC` | 2 (fetch, pop) |
-| `RTI` | 3 (fetch, pop PC, pop PSW) |
-| interrupt or trap entry | 4 (push PSW, push PC, read the two vector words) |
-
-**Why:** it teaches the real reason registers exist. A value kept in R2 is free; the same
-value in memory costs a cycle every time. **Cost:** the budget per tick is retuned once,
-after the default firmware has been ported and measured (§16, open question 2).
-
-A `WAIT` costs 1 cycle and then nothing while asleep. Cycles left in a tick are not saved.
+Moved to [`BLUE11_MACHINE.md`](https://github.com/bluedragon-ctrl/Blue11/blob/main/docs/BLUE11_MACHINE.md) §4. *Rover:* the budget per tick was tuned once the default firmware had been ported and measured (64 cycles a tick, §14.5); cycles left in a tick were not saved.
 
 ## 5. Flags and branches
 
-`N` (negative), `Z` (zero), `V` (overflow), `C` (carry) live in the low bits of `PSW`.
-Almost every instruction sets them from its result; branches test them.
-
-```
-        CMP  @#BAT, #20.        ; computes BAT − 20, sets N Z V C, stores nothing
-        BLT  HOME               ; signed "less than": N xor V
-```
-
-| Branch | Taken if | Use |
-| :--- | :--- | :--- |
-| `BR` | always | |
-| `BEQ` / `BNE` | Z / not Z | equal / not equal |
-| `BMI` / `BPL` | N / not N | negative / positive; also bit 7 of a byte, bit 15 of a word |
-| `BLT` `BGE` `BGT` `BLE` | signed | positions, angles differences |
-| `BLO` `BHIS` `BHI` `BLOS` | unsigned (`BLO` = `BCS`, `BHIS` = `BCC`) | addresses, counts, ticks |
-| `BVS` / `BVC`, `BCS` / `BCC` | V / C | overflow, carry |
-
-**The gotcha (a real lesson, not a bug to fix):** the flags belong to the *last*
-instruction that set them.
-
-```
-        CMP  R0, #10.
-        MOV  #1, R1             ; MOV sets N and Z too: the CMP's result is gone
-        BLT  LESS               ; tests "1 < 0", not "R0 < 10"
-```
-
-The fix is ordering (`MOV` before `CMP`). Reference gets a *Flags* box that shows which
-instructions change which flags, and the debugger shows `NZVC` live.
+Moved to [`BLUE11_MACHINE.md`](https://github.com/bluedragon-ctrl/Blue11/blob/main/docs/BLUE11_MACHINE.md) §5.
 
 ## 6. Memory map
 
@@ -459,88 +289,7 @@ Device details, register bits and vectors: [`BLUE11_IO.md`](BLUE11_IO.md) §5.
 
 ## 9. Multiply and divide: ROM routines, then the EIS upgrade
 
-The base CPU is the **original /40 model instruction set without its EIS option** (§9.3): no
-`MUL` or `DIV`. The early original /20 model had no multiply or divide instructions either;
-programs called routines like these.
-They are in the ROM, readable in Reference → ROM:
-
-```
-; MUL16: R0 = R0 × R1 (low 16 bits; the same for signed and unsigned).
-; Changes R1 (allowed by the convention: R0 and R1 are scratch). Keeps R2 on the stack.
-MUL16:  MOV  R2, -(SP)          ; save R2
-        CLR  R2                 ; R2 = running sum
-1$:     TST  R1                 ; multiplier used up?
-        BEQ  3$
-        CLC                     ; shift R1 right, with a 0 coming in at the top
-        ROR  R1                 ;   ...its lowest bit lands in the carry flag
-        BCC  2$                 ; bit was 0: nothing to add
-        ADD  R0, R2             ; bit was 1: add the shifted multiplicand
-2$:     ASL  R0                 ; multiplicand × 2
-        BR   1$
-3$:     MOV  R2, R0             ; result in R0
-        MOV  (SP)+, R2          ; restore R2
-        RTS  PC
-```
-
-```
-; DIV16: R0 = R0 / R1, R1 = remainder (unsigned). C = 1 if R1 was 0 (R0, R1 unchanged).
-DIV16:  TST  R1
-        BNE  1$
-        SEC                     ; divide by zero: report it in the carry flag
-        RTS  PC
-1$:     MOV  R2, -(SP)
-        MOV  R3, -(SP)
-        MOV  R1, R2             ; R2 = divisor
-        CLR  R1                 ; R1 = remainder, built up bit by bit
-        MOV  #16., R3           ; 16 quotient bits
-2$:     ASL  R0                 ; next dividend bit out of R0...
-        ROL  R1                 ;   ...into the remainder
-        BCS  4$                 ; a 17th bit: certainly >= divisor
-        CMP  R1, R2             ; remainder >= divisor? (unsigned)
-        BLO  3$
-4$:     SUB  R2, R1             ; yes: subtract...
-        INC  R0                 ;   ...and the quotient bit is 1
-3$:     SOB  R3, 2$             ; 16 times
-        MOV  (SP)+, R3
-        MOV  (SP)+, R2
-        CLC
-        RTS  PC
-```
-
-### 9.1 Cost
-
-* `MUL16` costs 7–8 cycles per bit of the multiplier: `× 100.` (7 bits) is about 65.
-* `DIV16` costs about 150. Players feel that dividing is expensive, which is the real
-  lesson (it is why programmers shift instead).
-* Division by zero no longer touches a status port: the caller tests `BCS`. That is how
-  the EIS `DIV` reports it too.
-
-### 9.2 The EIS upgrade
-
-The **Extended Instruction Set** (a real option board) adds `MUL`, `DIV`, `ASH` (shift by
-n) and `ASHC` (shift a register pair). Their cycles are the usual bus accesses plus a
-fixed internal cost (`MUL` +4, `DIV` +8, shifts +1), a departure from "inside the CPU is
-free" so they are not *too* fast: still about 10× faster than the ROM. Without the board
-they trap to vector `010` (a program fault). Later idea: a firmware trap handler that
-emulates them with `MUL16` / `DIV16`, so the same program runs on both rovers, slower,
-as real systems did.
-
-### 9.3 The instruction subset
-
-| Group | Instructions |
-| :--- | :--- |
-| Double operand | `MOV(B) CMP(B) BIT(B) BIC(B) BIS(B) ADD SUB XOR` |
-| Single operand | `CLR(B) COM(B) INC(B) DEC(B) NEG(B) TST(B) ASR(B) ASL(B) ROR(B) ROL(B) ADC(B) SBC(B) SWAB SXT` |
-| Branches | `BR BNE BEQ BPL BMI BVC BVS BCC BCS BGE BLT BGT BLE BHI BLOS BHIS BLO` |
-| Jumps, subroutines | `JMP JSR RTS SOB` |
-| Traps, control | `TRAP EMT BPT IOT RTI RTT WAIT HALT RESET NOP` |
-| Flags | `CLC CLV CLZ CLN CCC SEC SEV SEZ SEN SCC` |
-| EIS (upgrade) | `MUL DIV ASH ASHC` |
-
-Left out: `MARK`, `MFPI` / `MTPI` (memory management), `SPL` (original /45 model: write `PSW`
-instead), floating point. `RESET` is firmware-only (it resets every device: drive stops,
-CSRs to their reboot state). `MOVB` into a register sign-extends; `CLRB` / `BISB` don't
-touch the high byte: both are real and both are lessons.
+Moved to [`BLUE11_MACHINE.md`](https://github.com/bluedragon-ctrl/Blue11/blob/main/docs/BLUE11_MACHINE.md) §7 (`MUL16`, `DIV16`, their cost, the EIS option and the instruction subset). *Rover:* the routines were in its ROM, EIS was a rover upgrade, and `RESET` was firmware-only.
 
 ## 10. ROM
 
@@ -599,6 +348,8 @@ leave the flags from it, so the caller writes:
 
 ## 11. Departures from the original machine
 
+The library's departures are listed in [`BLUE11_MACHINE.md`](https://github.com/bluedragon-ctrl/Blue11/blob/main/docs/BLUE11_MACHINE.md) §8. This list is Rover's.
+
 1. **Two register sets switched by a gate register** (`PRGCS`), with write protection by
    region. No kernel / user mode machinery and no memory management (owner decision 4).
 2. **Cycles count bus accesses**, not microseconds; EIS adds a fixed internal cost.
@@ -645,88 +396,15 @@ slice 4). The default firmware (166 B today) should land near 300 B, well inside
 
 ## 13. Why not RISC-V, MIPS or x86 (summary of the discussion)
 
-* **RISC-V**: modern and open, but 32-bit, load/store only, no flags; its branch
-  immediates are bit-shuffled, so it can't be read by hand.
-* **MIPS** (R2000/R3000, New Horizons, PS1): clean, but delay slots and `HI` / `LO`, and
-  2–3× today's Flash.
-* **x86**: today's Rover-ASM already looks like it, but the encoding is opaque and the
-  syntax is split between Intel and AT&T.
-* **DEC's 16-bit machine (the Blue-11)**: the smallest distance from Rover-ASM (memory operands, two-operand
-  instructions), readable octal encoding, flags, real traps and interrupts, and history.
+Moved to [`BLUE11_MACHINE.md`](https://github.com/bluedragon-ctrl/Blue11/blob/main/docs/BLUE11_MACHINE.md) §1.
 
 ## 14. Library boundary
 
-Owner decision 11 (2026-11-15): the CPU and its assembler are built as a **self-contained
-library** that could be reused in other projects (a tutorial site, a standalone emulator
-page, a command-line assembler). Rover is its first user, not its owner.
-
-### 14.1 What goes where
-
-| Library `src/blue11/` | Rover (`src/core/` and the UI) |
-| :--- | :--- |
-| CPU: registers, `PSW`, the eight addressing modes, the instruction set (§9.3), flags, traps, interrupts, `WAIT` / `HALT` / `RESET` | the memory map (§6): core size, image memory, ROM, write protection |
-| Options: EIS on / off, cycle model (per bus access as in §4, or flat), long names and `_` | the I/O page and every device ([`BLUE11_IO.md`](BLUE11_IO.md)) |
-| Assembler: Blue-11 assembly (a subset of the original assembler) (§3) → words, listing, symbol table, source line map, errors | predefined symbols (`BAT`, `DRVCS`, `E.BUSY`, directions, tiles) |
-| Disassembler and the octal listing format (§3.5) | ROM source: boot, safe mode, handlers, drivers, helpers (§10) |
-| Saving and restoring CPU state (plain JSON) | the gate and the two register sets (§7), when interrupts arrive (tick starts) |
-| Optional, separate entry point: CodeMirror syntax mode | lessons, Reference, debugger, Comms, saves |
-
-**The gate stays outside the CPU.** Rover keeps two saved CPU states (firmware and
-program) and swaps them: `MOV #GO, @#PRGCS` is a bus write that Rover sees and answers by
-loading the program's state; a gate exit loads the firmware's. An interrupt during the
-program swaps to the firmware before it is taken, and a hook reports when `RTI` pops a
-`PSW` whose mode bits say "program", so Rover swaps back. The library knows nothing about
-slots, slices or `PRGCS`: it is a plain CPU with options, testable against how the real
-machine behaved.
-
-### 14.2 Interface (built in slice 2)
-
-The full reference is [`src/blue11/README.md`](../src/blue11/README.md). In short:
-
-```ts
-interface Bus {                       // supplied by the host (Rover: memory + I/O page)
-  read(addr: number, byte: boolean): number;            // BUS_ERROR (−1) if nothing answers
-  write(addr: number, value: number, byte: boolean): boolean; // false = bus error / protection
-  reset?(): void;                     // the RESET instruction
-}
-
-const cpu = new Cpu(bus, { eis: false, cycles: 'per-bus-access' });
-cpu.run(maxCycles, breakpoints?);     // → { reason: budget | wait | halt | trap | double-fault | breakpoint, cycles, instructions, trap? }
-cpu.step();                           // one instruction (debugger)
-cpu.interrupt(vector, level);         // the host decides when (Rover: at tick start)
-cpu.onTrap = (t) => 'vector' | 'stop';   // Rover: program-mode faults leave through the gate
-cpu.onModeChange = (mode, old) => …;  // PSW bits 15–14 changed (RTI, trap, PSW write)
-cpu.onInstruction = (pc, opcode) => …; // each instruction once fetched (profiling, coverage)
-cpu.stackLimit = 0o1000;              // a push below it traps to 4
-cpu.save() / cpu.load(state);         // plain JSON; swapping the two register sets
-
-assemble(source, { origin, symbols, names: 'dec', hex: false });   // hex: opt-in ^X, not standard syntax
-// → { ok, errors[{line, column, message}], warnings[same], origin, bytes, start, symbols, labels,
-//     lines, lineAt (address → line), listing, listingRows }
-disassemble(readWord, address, { nameOf });   // → { address, words, text }
-new DeviceMachine({ memory, eis }).add(device);    // RAM + CPU + memory-mapped Device objects
-new SimpleMachine({ memory, clockCycles, eis });   // a DeviceMachine with DL11 console + KW11-L clock
-```
-
-The PSW answers on the bus at `177776` inside the CPU, as on the original machines. `HALT` stops
-`run` with reason `halt` and sets `cpu.halted`; the host decides what it means (for Rover's
-program: "finished").
-
-### 14.3 Rules
-
-* **A folder, not a package, for now:** `src/blue11/` with its own `index.ts` (the only
-  entry point) and its own tests in `tests/blue11/`. It moves to an npm workspace or its
-  own repository only when a second project needs it.
-* **No imports from the game.** A test fails if any file in `src/blue11/` imports from
-  outside the folder, so the boundary can't erode quietly (like the determinism test).
-* **The game's core rules apply inside:** no DOM, no `Math.random`, no wall-clock time,
-  integer arithmetic only. The library is deterministic by construction, which helps any
-  other user too.
-* **Errors are values,** never exceptions thrown into the host: the assembler returns a
-  list with line and column; the CPU reports traps and stops.
-* **Name for a public release:** decided in slice 6: **Blue-11** (and Blue-11 assembly), with a description of the instruction set in the
-  description, to stay clear of DEC's old trademark (held by HP today). Emulators such as
-  SIMH use the name freely, so this is caution, not a blocker.
+§14.1–§14.3 (what goes where, the interface, the rules) moved to
+[`BLUE11_MACHINE.md`](https://github.com/bluedragon-ctrl/Blue11/blob/main/docs/BLUE11_MACHINE.md) §9, and the interface is documented in the library's
+[`README.md`](https://github.com/bluedragon-ctrl/Blue11/blob/main/packages/blue11/README.md). *Rover:* the gate stayed outside the CPU. Rover kept two
+saved CPU states and swapped them on a write to `PRGCS`, and on an `RTI` whose `PSW` said
+"program".
 
 ### 14.4 Rover's side, as built in slice 3
 

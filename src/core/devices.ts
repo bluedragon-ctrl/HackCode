@@ -11,7 +11,7 @@
  * tick when a busy device with IE can wake it.
  */
 
-import { BUS_ERROR, type Cpu, type Device } from '../blue11';
+import { BUS_ERROR, type Cpu, type Device } from 'blue11';
 import {
   CHARGE_RATE, COST, CSR, DEVICE_LEVEL, ENERGY_MAX, DX, DY, ERR, FN, INVENTORY_SLOTS, LASER_DAMAGE, LASER_RANGE, LASER_RANGE_SQ, MEMORY, REG,
   SCAN_RADIUS, SCAN_RANGE_SQ, TICKS, VECTOR,

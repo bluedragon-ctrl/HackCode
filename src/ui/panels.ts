@@ -3,7 +3,7 @@
  * Numbers are octal, except HP and energy (decimal, with the dot).
  */
 
-import { octal, REGISTER_NAMES, type Cpu } from '../blue11';
+import { octal, REGISTER_NAMES, type Cpu } from 'blue11';
 import type { World } from '../core';
 
 const HEADINGS = ['N', 'E', 'S', 'W'];

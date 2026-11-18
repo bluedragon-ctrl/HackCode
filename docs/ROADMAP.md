@@ -30,8 +30,9 @@ standalone simulator where students write programs that draw graphics and read t
 that second project. Every new device follows `src/blue11/AGENTS.md`: tests first, and listed
 in the README as a departure from the original machine.
 
-1. **Display spec:** [`BLUE11_DISPLAY.md`](BLUE11_DISPLAY.md), 64 × 64 pixels, a byte per
-   pixel, two pages, a 16-colour RGB 3-3-3 palette, and a vertical-blank flag and interrupt.
+1. **Display spec:** [`BLUE11_DISPLAY.md`](BLUE11_DISPLAY.md). Two modes in a 16 KB window:
+   mode 0 is 64 × 64 at a byte per pixel (4 pages), mode 1 is 128 × 128 at 4 bits per pixel
+   (2 pages). Both use a 16-colour RGB 3-3-3 palette, with a vertical-blank flag and interrupt.
    *Draft: the owner reviews it and answers its §9.*
 2. **Keyboard spec** (`docs/BLUE11_KEYBOARD.md`): which keys are down (for games), and key
    presses and releases as scan codes queued with an interrupt, at `176700`. The console
@@ -61,7 +62,7 @@ in the README as a departure from the original machine.
    saved in `localStorage` and shared by URL, and an input log for replays.
    **Done when:** every example program runs in the page, and the tests check the frames it
    draws.
-9. **Later, if wanted:** display mode 1 (128 × 128 at 4 bpp), a shared UI package for the
+9. **Later, if wanted:** a third display mode (such as 128 × 128 at 1 bpp), a shared UI package for the
    debugger panels HackCode and the simulator have in common (extracted only once both exist),
    and the display or keyboard in HackCode.
 

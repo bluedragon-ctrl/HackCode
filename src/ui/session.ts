@@ -27,6 +27,30 @@ export interface StepResult {
   trap?: TrapInfo;
 }
 
+/** One bus access of the CPU (Blue-11 `Cpu.onAccess`). */
+export interface Access {
+  addr: number;
+  value: number;
+  write: boolean;
+  byte: boolean;
+}
+
+/** At most this many accesses are kept for one step (a step can run to the end of the tick). */
+const MAX_ACCESSES = 64;
+
+/** What the last Step did, for the machine view: the registers before and after, and the bus. */
+export interface StepTrace {
+  /** The address of the instruction. */
+  pc: number;
+  before: { r: number[]; psw: number };
+  after: { r: number[]; psw: number };
+  accesses: Access[];
+  /** More accesses happened than were kept. */
+  truncated: boolean;
+  /** 1, or 0 when the step took a pending interrupt instead of running an instruction. */
+  instructions: number;
+}
+
 export class Session {
   world: World;
   /** The source last loaded, or null. */
@@ -41,6 +65,8 @@ export class Session {
   readonly heat = new Uint32Array(0x8000);
   /** Why the run failed, when {@link last} is 'failed'. */
   failure: string | null = null;
+  /** The last Step, or null if the last command was not a step of one instruction. */
+  lastStep: StepTrace | null = null;
   readonly goal: Goal;
 
   constructor(readonly map: string, private readonly options: SessionOptions = {}) {
@@ -60,6 +86,7 @@ export class Session {
     this.program = program;
     this.last = null;
     this.failure = null;
+    this.lastStep = null;
     this.heat.fill(0);
   }
 
@@ -114,6 +141,7 @@ export class Session {
    */
   run(maxTicks: number, resume = false): StepResult {
     this.unhalt();
+    this.lastStep = null;
     let stop: Stop = 'tick';
     const r = this.world.run(maxTicks, this.breakpoints, resume, (t) => (stop = this.outcome(t.reason)) !== 'tick');
     return this.finish(stop, r);
@@ -122,7 +150,28 @@ export class Session {
   /** One instruction (the tick finishes if it reaches its end). */
   stepInstruction(): StepResult {
     this.unhalt();
-    const r = this.world.stepInstruction();
+    const cpu = this.world.robot.cpu;
+    // Asleep in WAIT, a step sleeps to the end of the tick: no one instruction to show.
+    const traced = !cpu.waiting && !cpu.halted;
+    const trace: StepTrace = {
+      pc: cpu.r[7], before: { r: Array.from(cpu.r), psw: cpu.psw },
+      after: { r: [], psw: 0 }, accesses: [], truncated: false, instructions: 0,
+    };
+    if (traced) {
+      cpu.onAccess = (addr, value, write, byte) => {
+        if (trace.accesses.length < MAX_ACCESSES) trace.accesses.push({ addr, value, write, byte });
+        else trace.truncated = true;
+      };
+    }
+    let r: TickResult;
+    try {
+      r = this.world.stepInstruction();
+    } finally {
+      cpu.onAccess = null;
+    }
+    trace.after = { r: Array.from(cpu.r), psw: cpu.psw };
+    trace.instructions = r.instructions;
+    this.lastStep = traced ? trace : null;
     return this.finish(this.outcome(r.reason), r);
   }
 

@@ -210,6 +210,7 @@ const r = cpu.run(1000);                           // { reason: 'halt', … }; R
 | `cancelInterrupt(vector)` | withdraw a pending request |
 | `onTrap: (t: TrapInfo) => 'vector' \| 'stop'` | called before every trap *and interrupt*. `'stop'`: `run` returns reason `'trap'` and the host handles it. A fault leaves the PC at the faulting instruction; `EMT`/`TRAP`/`BPT`/`IOT` leave it after; an interrupt stays pending (and a `WAIT` waiting), so the next `run` stops on it again unless the host clears it. For an interrupt it is asked while the request is still pending: a request the callback withdraws (`cancelInterrupt`) or replaces is not taken |
 | `onInstruction: (pc, opcode) => void` | every instruction once fetched, before it runs. Not called for a fetch that faults or for interrupts |
+| `onAccess: (addr, value, write, byte) => void` | every bus access that succeeds, instruction fetches and the PSW's bus address included; `value` is a byte for byte accesses. Not called for a faulting access |
 | `onModeChange: (mode, old) => void` | PSW bits 15–14 changed (trap, `RTI`, PSW write) |
 | `stackLimit` | a push through SP below this address traps to 4 before writing (cause `'stack-limit'`); 0 = off |
 | `r` | `number[8]`; `r[6]` = SP, `r[7]` = PC. Writable |

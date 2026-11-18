@@ -183,6 +183,38 @@ describe('blue11 Cpu.onInstruction', () => {
   });
 });
 
+describe('blue11 Cpu.onAccess', () => {
+  it('sees the fetches, reads and writes of an instruction in order', () => {
+    const { m } = bootSimple(`
+        MOV #5, R0
+        MOV R0, -(SP)
+        MOVB @#BYTE, R1
+        HALT
+BYTE:   .BYTE 7, 0`);
+    const seen: Array<[number, number, boolean, boolean]> = [];
+    m.cpu.onAccess = (a, v, w, b) => seen.push([a, v, w, b]);
+    m.step();
+    expect(seen).toEqual([[0o1000, 0o012700, false, false], [0o1002, 5, false, false]]);
+    seen.length = 0;
+    const sp = m.cpu.r[6];
+    m.step();
+    expect(seen).toEqual([[0o1004, 0o010046, false, false], [sp - 2, 5, true, false]]);
+    seen.length = 0;
+    m.step();
+    expect(seen).toEqual([[0o1006, 0o113701, false, false], [0o1010, 0o1014, false, false], [0o1014, 7, false, true]]);
+  });
+
+  it('is not called for an access that faults', () => {
+    const { m } = bootSimple(' MOV @#1, R0');
+    const seen: number[] = [];
+    m.cpu.onAccess = (a) => seen.push(a);
+    m.step();
+    expect(seen.slice(0, 2)).toEqual([0o1000, 0o1002]);
+    expect(seen).not.toContain(1); // then the trap through vector 4
+    expect(seen).toContain(4);
+  });
+});
+
 describe('blue11 assembler ^X (opt-in)', () => {
   it('is an error by default, a hexadecimal number with hex: true', () => {
     expect(assemble(' .WORD ^XFF').errors[0].message).toMatch(/not standard syntax/);

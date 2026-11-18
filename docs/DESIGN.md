@@ -133,6 +133,25 @@ The player works console-style: short snippets first, automating more over time.
   memory view takes an octal address, a label, a device name or a register (default SP).
   Assembler errors are shown on their lines.
 
+### Machine view
+
+A teaching view of the robot's computer, shown in place of the map (the **Map / Machine**
+tabs over the board; the choice is remembered). It shows that the program is words in
+memory that the CPU fetches and runs one at a time:
+
+- **Last step** — what the last *Step* did, in the CPU's order: the fetch of each word of
+  the instruction (PC moves on by 2), every read and write on the bus with the address
+  named (a label, a device register, *stack*, a vector), then the registers and flags that
+  changed and where the PC went (the next instruction, a jump, or a trap handler; a trap or
+  interrupt gets a note: PSW and PC pushed, new PC and PSW from the vector). Taken from
+  Blue-11's `Cpu.onAccess` during the step only; Run and Step tick leave it empty.
+- **Program in memory** — the assembler's listing (address, words, source), with the PC's
+  row lit and the program's own words read or written by the step marked. A PC in the
+  BIOS is named above it.
+- **Memory map** — the robot's address space, high addresses on top: I/O page, BIOS ROM,
+  free RAM, the program, the stack below it, the vectors, with the PC and SP marked.
+- **Stack** — the words from SP up to where the stack starts (the program's origin).
+
 ### Failure states
 
 - Energy 0: devices refuse with ERROR "no power"; CPU keeps running.

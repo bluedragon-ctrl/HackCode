@@ -1,7 +1,7 @@
 # HackCode — Game Design
 
 An educational browser game teaching assembly language. The player programs a robot in
-Blue-11 assembly (a Macro-11 dialect, library in `src/blue11/`) and guides it through a
+Blue-11 assembly (a Macro-11 dialect, library: the npm package [`blue11`](https://github.com/bluedragon-ctrl/Blue11)) and guides it through a
 dungeon: fighting monsters, collecting loot, reaching the exit.
 
 - **Audience:** young people interested in IT, with some prior IT knowledge.
@@ -16,7 +16,7 @@ Status: agreed design, v1 scope. Items marked *later* are out of scope for v1.
 ## 1. Architecture
 
 ```
-src/blue11/   CPU, assembler, disassembler, device bus   (library: imports nothing from the game)
+blue11        (npm package) CPU, assembler, disassembler, device bus; knows nothing of the game
 src/core/     simulation: world, entities, robot devices, ticks, dungeon generator, seeded RNG
               pure TypeScript, deterministic, no DOM — unit-tested
 src/render/   top-down 2D renderer (vector/neon cyberpunk look: line-art sprites with a colour split) behind a small interface: Canvas 2D now, PixiJS later
@@ -534,7 +534,7 @@ guesses, to be tuned in play.
 
 *Later step:* more modules (decoy beacon, cloak, battery cell, cartographer; Roadmap).
 
-## 9. Assembler notes (from `src/blue11/README.md`)
+## 9. Assembler notes (from the [`blue11` README](https://github.com/bluedragon-ctrl/Blue11/blob/main/packages/blue11/README.md))
 
 - Octal by default, `10.` decimal, `'A` characters, local labels `1$`, expressions.
 - **No macros, no includes.** Device register names and BIOS call numbers are given to

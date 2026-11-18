@@ -27,20 +27,20 @@ expedition in the page (DESIGN.md §8).
 The library becomes a project of its own: a repository shared by several projects, with a
 standalone simulator where students write programs that draw graphics and read the keyboard.
 `docs/BLUE11_CPU.md` §14.3 planned this "when a second project needs it". The simulator is
-that second project. Every new device follows `src/blue11/AGENTS.md`: tests first, and listed
+that second project. Every new device follows `packages/blue11/AGENTS.md` (in Blue11): tests first, and listed
 in the README as a departure from the original machine.
 
-1. **Display spec:** [`BLUE11_DISPLAY.md`](BLUE11_DISPLAY.md). Two modes in a 16 KB window:
+1. **Display spec:** [`BLUE11_DISPLAY.md`](https://github.com/bluedragon-ctrl/Blue11/blob/main/docs/BLUE11_DISPLAY.md). Two modes in a 16 KB window:
    mode 0 is 64 × 64 at a byte per pixel (4 pages), mode 1 is 128 × 128 at 4 bits per pixel
    (2 pages). Both use a 16-colour RGB 3-3-3 palette, with a vertical-blank flag and interrupt,
    and an optional scanning beam that tears. An 8 × 8 font and the routines that draw it are in
    the simulator's ROM. *Decided (2026-11-18).*
-2. **Keyboard spec:** [`BLUE11_KEYBOARD.md`](BLUE11_KEYBOARD.md). Key codes are positions on
+2. **Keyboard spec:** [`BLUE11_KEYBOARD.md`](https://github.com/bluedragon-ctrl/Blue11/blob/main/docs/BLUE11_KEYBOARD.md). Key codes are positions on
    a US keyboard, with letters and digits as ASCII. A key map has one byte per key at `177000`
    (`200` = down). An event queue of 16 presses and releases (`KBDCS`, `KBDBUF` at `176700`)
    interrupts at vector `330`. Exact replays come from an input log of (cycle, event). The DL11
    console stays the device for typed text. *Decided (2026-11-18).*
-3. ~~**Split the docs**~~ (done, 2026-11-18): [`BLUE11_MACHINE.md`](BLUE11_MACHINE.md) is the
+3. ~~**Split the docs**~~ (done, 2026-11-18): [`BLUE11_MACHINE.md`](https://github.com/bluedragon-ctrl/Blue11/blob/main/docs/BLUE11_MACHINE.md) is the
    machine's design (principle, assembler, cycles, flags, traps and interrupts, multiply and
    divide, departures, the library's boundary). It moves with the library. `BLUE11_CPU.md` stays
    here as Rover's history, and its library sections point to the new document.
@@ -50,11 +50,10 @@ in the README as a departure from the original machine.
    types, CI, publishing to npm on a tag). From here on, the library's steps (publishing 0.1.0,
    the display, the keyboard, the simulator) are tracked in its own `docs/ROADMAP.md`.
    `blue11` 0.1.0 is on npm (2026-11-18).
-5. **HackCode uses the package:** depend on `blue11` 0.1, delete `src/blue11/`,
-   `tests/blue11/`, `src/simulator/` and the copies of `BLUE11_MACHINE.md`, `BLUE11_DISPLAY.md`
-   and `BLUE11_KEYBOARD.md` (their home is Blue-11 now), update the imports and links, and
-   update `AGENTS.md` (the layout table), `DESIGN.md`
-   and `BLUE11_CPU.md` decision 19. **Done when:** HackCode's tests and build pass unchanged.
+5. ~~**HackCode uses the package**~~ (done, 2026-11-18): HackCode depends on `blue11` ^0.1.0
+   and imports from `'blue11'` and `'blue11/codemirror'`. Its copies of the library, the
+   library's tests, the examples and the three Blue-11 docs are deleted; links point to Blue11.
+   The 309 game tests and the build pass unchanged (the 146 library tests run in Blue11).
 6. **Steps 6–9 moved to Blue-11's roadmap:** the display and keyboard devices, the simulator,
    and the later options.
 

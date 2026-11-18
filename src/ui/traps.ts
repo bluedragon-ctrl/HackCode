@@ -3,7 +3,7 @@
  * (src/core/robot.ts stops instead of jumping through an empty vector). No DOM, so it is tested.
  */
 
-import { decodeOp, octal, type TrapInfo } from '../blue11';
+import { decodeOp, octal, type TrapInfo } from 'blue11';
 import { inRom, type Robot } from '../core';
 
 /** One line for the status bar: what happened and where. */

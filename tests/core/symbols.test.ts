@@ -1,6 +1,6 @@
 /** The device prelude given to assemble({ symbols }) (DESIGN.md §9). */
 import { describe, expect, it } from 'vitest';
-import { assemble } from '../../src/blue11';
+import { assemble } from 'blue11';
 import { CSR, ERR, FN, REG, SYMBOLS, VECTOR } from '../../src/core';
 
 describe('device symbols', () => {

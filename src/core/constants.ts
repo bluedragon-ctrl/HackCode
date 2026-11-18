@@ -3,7 +3,7 @@
  * energy costs. DESIGN.md §3–§5 records the same table; change both together.
  */
 
-import { DEV } from '../blue11';
+import { DEV } from 'blue11';
 
 /** Blue-11 cycles per game tick. The KW11-L line clock ticks once per tick of CPU time. */
 export const TICK_CYCLES = 200;

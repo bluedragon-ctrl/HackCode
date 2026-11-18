@@ -12,7 +12,7 @@
  * of jumping to address 0, so the host can say what happened (DESIGN.md §4 "Traps").
  */
 
-import { BUS_ERROR, DeviceMachine, DL11, KW11L, VEC, type Cpu, type Device, type Program } from '../blue11';
+import { BUS_ERROR, DeviceMachine, DL11, KW11L, VEC, type Cpu, type Device, type Program } from 'blue11';
 import { bios, biosEntry } from './bios';
 import { ENERGY_MAX, MEMORY, ROBOT_HP, TICK_CYCLES } from './constants';
 import { Dock, Grabber, Inventory, Laser, Scanner, Status, Wheels, wordOf, type ActionDevice } from './devices';

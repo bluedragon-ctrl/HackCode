@@ -1,8 +1,9 @@
 > **Status in HackCode (2026-11-18).** This document comes from the earlier Rover project,
 > where the Blue-11 library was designed and built. It is kept as history.
 >
-> - **The library's design is now in [`BLUE11_MACHINE.md`](BLUE11_MACHINE.md)**, which moves with
->   the library to its own repository (ROADMAP.md §1). The sections that described the library
+> - **The library's design is now in [`BLUE11_MACHINE.md`](https://github.com/bluedragon-ctrl/Blue11/blob/main/docs/BLUE11_MACHINE.md)**, in
+>   the library's own repository, [Blue11](https://github.com/bluedragon-ctrl/Blue11); HackCode
+>   uses it as the npm package `blue11` (ROADMAP.md §1). The sections that described the library
 >   (§1, §3, §4, §5, §9, §11 as far as it concerns the library, §13, §14.1–§14.3) now point
 >   there.
 > - **Rover's game, not HackCode's:** §0, §2, §6–§8, §10, §12, §14.4–§14.7, §15, §16 cover
@@ -66,15 +67,16 @@ Owner answers to §16 (2026-11-15, second round):
 19. **A standalone simulator page** (`simulator.html`) is built with the library in slice 2:
     editor, registers and flags, memory, console, step / run / breakpoints. It proves the
     library stands alone and lets the owner try the CPU before it is in the game.
-    *HackCode:* the page was not carried over; its example programs are in
-    `src/simulator/examples.ts`, run by the tests.
+    *HackCode:* the page was not carried over. Its example programs moved with the library to
+    Blue11 (`packages/blue11/examples/examples.ts`, run by its tests), where the student
+    simulator is being built.
 
 M14 is frozen where it is: its last item (boot ROM with safe mode) is not built in
 Rover-ASM. It moves into this milestone's ROM (§10).
 
 ## 1. Principle
 
-Moved to [`BLUE11_MACHINE.md`](BLUE11_MACHINE.md) §1.
+Moved to [`BLUE11_MACHINE.md`](https://github.com/bluedragon-ctrl/Blue11/blob/main/docs/BLUE11_MACHINE.md) §1.
 
 ## 2. The machine
 
@@ -94,15 +96,15 @@ error (trap to 4), as on the real machine.
 
 ## 3. Assembler: Blue-11 assembly (a subset of the original assembler)
 
-Moved to [`BLUE11_MACHINE.md`](BLUE11_MACHINE.md) §3 (lines, directives, octal, addressing modes, encoding; §3.5 is still the listing example the tests check). Rover's predefined symbols were in `BLUE11_IO.md`.
+Moved to [`BLUE11_MACHINE.md`](https://github.com/bluedragon-ctrl/Blue11/blob/main/docs/BLUE11_MACHINE.md) §3 (lines, directives, octal, addressing modes, encoding; §3.5 is still the listing example the tests check). Rover's predefined symbols were in `BLUE11_IO.md`.
 
 ## 4. Cycles: one per bus access
 
-Moved to [`BLUE11_MACHINE.md`](BLUE11_MACHINE.md) §4. *Rover:* the budget per tick was tuned once the default firmware had been ported and measured (64 cycles a tick, §14.5); cycles left in a tick were not saved.
+Moved to [`BLUE11_MACHINE.md`](https://github.com/bluedragon-ctrl/Blue11/blob/main/docs/BLUE11_MACHINE.md) §4. *Rover:* the budget per tick was tuned once the default firmware had been ported and measured (64 cycles a tick, §14.5); cycles left in a tick were not saved.
 
 ## 5. Flags and branches
 
-Moved to [`BLUE11_MACHINE.md`](BLUE11_MACHINE.md) §5.
+Moved to [`BLUE11_MACHINE.md`](https://github.com/bluedragon-ctrl/Blue11/blob/main/docs/BLUE11_MACHINE.md) §5.
 
 ## 6. Memory map
 
@@ -287,7 +289,7 @@ Device details, register bits and vectors: [`BLUE11_IO.md`](BLUE11_IO.md) §5.
 
 ## 9. Multiply and divide: ROM routines, then the EIS upgrade
 
-Moved to [`BLUE11_MACHINE.md`](BLUE11_MACHINE.md) §7 (`MUL16`, `DIV16`, their cost, the EIS option and the instruction subset). *Rover:* the routines were in its ROM, EIS was a rover upgrade, and `RESET` was firmware-only.
+Moved to [`BLUE11_MACHINE.md`](https://github.com/bluedragon-ctrl/Blue11/blob/main/docs/BLUE11_MACHINE.md) §7 (`MUL16`, `DIV16`, their cost, the EIS option and the instruction subset). *Rover:* the routines were in its ROM, EIS was a rover upgrade, and `RESET` was firmware-only.
 
 ## 10. ROM
 
@@ -346,7 +348,7 @@ leave the flags from it, so the caller writes:
 
 ## 11. Departures from the original machine
 
-The library's departures are listed in [`BLUE11_MACHINE.md`](BLUE11_MACHINE.md) §8. This list is Rover's.
+The library's departures are listed in [`BLUE11_MACHINE.md`](https://github.com/bluedragon-ctrl/Blue11/blob/main/docs/BLUE11_MACHINE.md) §8. This list is Rover's.
 
 1. **Two register sets switched by a gate register** (`PRGCS`), with write protection by
    region. No kernel / user mode machinery and no memory management (owner decision 4).
@@ -394,13 +396,13 @@ slice 4). The default firmware (166 B today) should land near 300 B, well inside
 
 ## 13. Why not RISC-V, MIPS or x86 (summary of the discussion)
 
-Moved to [`BLUE11_MACHINE.md`](BLUE11_MACHINE.md) §1.
+Moved to [`BLUE11_MACHINE.md`](https://github.com/bluedragon-ctrl/Blue11/blob/main/docs/BLUE11_MACHINE.md) §1.
 
 ## 14. Library boundary
 
 §14.1–§14.3 (what goes where, the interface, the rules) moved to
-[`BLUE11_MACHINE.md`](BLUE11_MACHINE.md) §9, and the interface is documented in the library's
-[`README.md`](../src/blue11/README.md). *Rover:* the gate stayed outside the CPU. Rover kept two
+[`BLUE11_MACHINE.md`](https://github.com/bluedragon-ctrl/Blue11/blob/main/docs/BLUE11_MACHINE.md) §9, and the interface is documented in the library's
+[`README.md`](https://github.com/bluedragon-ctrl/Blue11/blob/main/packages/blue11/README.md). *Rover:* the gate stayed outside the CPU. Rover kept two
 saved CPU states and swapped them on a write to `PRGCS`, and on an `RTI` whose `PSW` said
 "program".
 

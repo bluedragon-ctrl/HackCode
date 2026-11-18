@@ -4,7 +4,7 @@
  * described and shown exactly once: tests/ui/help.test.ts.
  */
 
-import { octal } from '../../blue11';
+import { octal } from 'blue11';
 import { SYMBOLS } from '../../core';
 import type { Entry } from './model';
 

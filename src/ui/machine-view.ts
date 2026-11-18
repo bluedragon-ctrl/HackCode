@@ -4,7 +4,7 @@
  * lit), the memory map with the PC and SP in it, and the stack. Contents from machine.ts.
  */
 
-import { octal } from '../blue11';
+import { octal } from 'blue11';
 import { inRom } from '../core';
 import { addressNamer } from './debug';
 import { explainStep, extentOf, listingRows, memoryMap, stackRows } from './machine';

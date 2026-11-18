@@ -3,15 +3,20 @@
 An educational browser game: the player programs a robot in Blue-11 assembly (a PDP-11 /
 Macro-11 dialect) through a dungeon. Design: [`docs/DESIGN.md`](docs/DESIGN.md).
 
+The CPU, assembler, disassembler and generic devices come from the npm package
+[`blue11`](https://www.npmjs.com/package/blue11) (`import … from 'blue11'`, editor support from
+`'blue11/codemirror'`). Its source, tests and design docs are in
+[bluedragon-ctrl/Blue11](https://github.com/bluedragon-ctrl/Blue11): change the library there,
+release it, then bump the version here.
+
 ## Layout
 
 | Folder | What | Rules |
 | :--- | :--- | :--- |
-| `src/blue11/` | CPU, assembler, disassembler, devices — a standalone library | Its own rules: [`src/blue11/AGENTS.md`](src/blue11/AGENTS.md). Imports nothing from the game. |
 | `src/core/` | Simulation: world, robot devices, ticks, dungeon generation | Deterministic, integer-only, no DOM; seeded RNG only |
 | `src/render/` | Top-down 2D renderer | Reads simulation state, never changes it |
 | `src/ui/` | Editor, debugger, lessons | |
-| `tests/` | Vitest | `tests/blue11/` for the library |
+| `tests/` | Vitest | |
 
 ## Commands
 

@@ -6,7 +6,7 @@
  * [label](section#anchor).
  */
 
-import { commentStart } from '../../blue11';
+import { commentStart } from 'blue11';
 
 /** One described thing that F1 and search can find: an instruction, a symbol, a directive. */
 export interface Entry {

@@ -4,7 +4,7 @@
  * lesson is about do not win.
  */
 import { describe, expect, it } from 'vitest';
-import { assemble } from '../../src/blue11';
+import { assemble } from 'blue11';
 import { SYMBOLS } from '../../src/core';
 import { HELP, parseInline } from '../../src/ui/help';
 import { blockTexts } from '../../src/ui/help/model';

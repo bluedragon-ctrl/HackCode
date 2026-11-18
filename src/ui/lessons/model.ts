@@ -4,7 +4,7 @@
  * lesson is tested: its solution wins, and the mistakes it teaches about do not.
  */
 
-import { commentStart, octal, type AssembleResult } from '../../blue11';
+import { commentStart, octal, type AssembleResult } from 'blue11';
 import type { MapOptions, World } from '../../core';
 import type { Block } from '../help/model';
 

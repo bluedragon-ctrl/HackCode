@@ -4,7 +4,7 @@
  * decides what the buttons do; this shows the expedition and checks the typed seed.
  */
 
-import { octal } from '../blue11';
+import { octal } from 'blue11';
 import type { Expedition } from './expedition';
 
 export interface ExpeditionActions {

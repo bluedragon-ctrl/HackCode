@@ -6,7 +6,7 @@
  * CPU fetches and runs one at a time.
  */
 
-import { octal, REGISTER_NAMES, VEC, type AssembleResult } from '../blue11';
+import { octal, REGISTER_NAMES, VEC, type AssembleResult } from 'blue11';
 import { inRom, MEMORY, VECTOR } from '../core';
 import { disassemblyAround } from './debug';
 import type { Access, StepTrace } from './session';

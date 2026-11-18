@@ -4,7 +4,7 @@
  * are at most 6 characters (the assembler's `names: 'dec'`). DESIGN.md §5 lists them.
  */
 
-import { PSW_ADDRESS } from '../blue11';
+import { PSW_ADDRESS } from 'blue11';
 import { BIOS_CALL, CSR, ERR, FN, HEADING, REG, VECTOR } from './constants';
 import { FLAG, TYPE } from './objects';
 

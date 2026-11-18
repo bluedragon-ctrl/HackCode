@@ -18,7 +18,7 @@ describe('core determinism rules', () => {
 
     it(`${f} imports only from core and the blue11 library`, () => {
       for (const spec of importsOf(readSource(DIR, f))) {
-        expect(spec, `${f} imports ${spec}`).toMatch(/^\.\/[^/]+$|^\.\.\/blue11$/);
+        expect(spec, `${f} imports ${spec}`).toMatch(/^\.\/[^/]+$|^blue11$/);
       }
     });
   }

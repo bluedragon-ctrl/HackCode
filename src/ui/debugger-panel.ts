@@ -5,7 +5,7 @@
  */
 
 import type { EditorView } from '@codemirror/view';
-import { octal } from '../blue11';
+import { octal } from 'blue11';
 import { bios, inRom } from '../core';
 import { addressNamer, disassemblyAround, lineHeat, memoryRows, parseAddress } from './debug';
 import { breakpointLines, setHeat, setPcLine, toggleBreakpointAtCursor } from './editor';

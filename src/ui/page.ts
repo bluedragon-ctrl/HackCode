@@ -8,8 +8,8 @@
 import { EditorView, keymap, lineNumbers } from '@codemirror/view';
 import { EditorState } from '@codemirror/state';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
-import { octal } from '../blue11';
-import { blue11Asm, blue11Highlight } from '../blue11/codemirror';
+import { octal } from 'blue11';
+import { blue11Asm, blue11Highlight } from 'blue11/codemirror';
 import { BIOS_SOURCE, ENERGY_MAX } from '../core';
 import { CanvasRenderer, type Renderer } from '../render';
 import { DebuggerPanel } from './debugger-panel';

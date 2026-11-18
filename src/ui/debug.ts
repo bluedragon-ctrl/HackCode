@@ -4,7 +4,7 @@
  * memory rows, the execution heat map per source line, and address parsing.
  */
 
-import { disassemble, PSW_ADDRESS, REGISTERS } from '../blue11';
+import { disassemble, PSW_ADDRESS, REGISTERS } from 'blue11';
 import { bios, BIOS_CALL, REG, SYMBOLS } from '../core';
 
 type Read = (addr: number) => number;

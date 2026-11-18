@@ -9,7 +9,8 @@ shoot monsters, collect loot, reach the exit.
 
 Status: pre-alpha. The current page is a Blue-11 console (editor, run, output, registers).
 See [`docs/DESIGN.md`](docs/DESIGN.md) for the game design and
-[`src/blue11/README.md`](src/blue11/README.md) for the CPU and assembler library.
+the [`blue11`](https://github.com/bluedragon-ctrl/Blue11/blob/main/packages/blue11/README.md) package (npm) for the CPU and assembler
+library, which lives in its own repository, [Blue11](https://github.com/bluedragon-ctrl/Blue11).
 
 ## Development
 

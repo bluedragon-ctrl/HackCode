@@ -1,6 +1,6 @@
 /** The robot machine's memory map and options (DESIGN.md §4). */
 import { describe, expect, it } from 'vitest';
-import { BUS_ERROR } from '../../src/blue11';
+import { BUS_ERROR } from 'blue11';
 import { CONSOLE_KEEP, MEMORY, REG, TICK_CYCLES, VECTOR } from '../../src/core';
 import { asm, load, world } from './helpers';
 

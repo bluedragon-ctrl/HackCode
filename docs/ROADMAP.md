@@ -49,7 +49,7 @@ in the README as a departure from the original machine.
    with its history, as npm workspaces with the package `blue11` (MIT licence, a build to ESM and
    types, CI, publishing to npm on a tag). From here on, the library's steps (publishing 0.1.0,
    the display, the keyboard, the simulator) are tracked in its own `docs/ROADMAP.md`.
-   **Still to do:** the owner adds the `NPM_TOKEN` secret and pushes the tag `v0.1.0`.
+   `blue11` 0.1.0 is on npm (2026-11-18).
 5. **HackCode uses the package:** depend on `blue11` 0.1, delete `src/blue11/`,
    `tests/blue11/`, `src/simulator/` and the copies of `BLUE11_MACHINE.md`, `BLUE11_DISPLAY.md`
    and `BLUE11_KEYBOARD.md` (their home is Blue-11 now), update the imports and links, and

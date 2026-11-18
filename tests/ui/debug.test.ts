@@ -2,8 +2,8 @@
 import { describe, expect, it } from 'vitest';
 import { bios, biosEntry, MEMORY, type World } from '../../src/core';
 import { addressNamer, disassemblyAround, lineHeat, memoryRows, parseAddress } from '../../src/ui/debug';
-import { BIOS_PROGRAM, TEST_MAP, TEST_PROGRAM } from '../../src/ui/samples';
-import { Session } from '../../src/ui/session';
+import { BIOS_PROGRAM, TEST_PROGRAM } from '../../src/ui/samples';
+import { loaded } from './helpers';
 
 /** Everything that makes up a world, for comparing two of them. */
 function snapshot(w: World) {
@@ -19,12 +19,6 @@ function snapshot(w: World) {
     console: r.console.output,
     floor: Array.from(w.grid.floor), occupant: Array.from(w.grid.occupant),
   };
-}
-
-function loaded(src: string): Session {
-  const s = new Session(TEST_MAP);
-  expect(s.load(src)).toEqual([]);
-  return s;
 }
 
 describe('stepping and running give identical worlds', () => {

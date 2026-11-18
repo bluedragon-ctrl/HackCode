@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { BUS_ERROR, Cpu, PSW, SimpleMachine, assemble, type Bus } from '../../src/blue11';
-import { o, runAsm } from './helpers';
+import { BUS_ERROR, Cpu, PSW, type Bus } from '../../src/blue11';
+import { boot, o, runAsm } from './helpers';
 
 /** Run a snippet followed by HALT; return the CPU. */
 const run = (body: string, opts = {}) => runAsm(`${body}\n HALT\n`, opts).cpu;
 const flags = (c: Cpu): string => `${c.n ? 'N' : '-'}${c.z ? 'Z' : '-'}${c.v ? 'V' : '-'}${c.c ? 'C' : '-'}`;
+/** A bare CPU on a bus with nothing but zeros. */
+const bareCpu = (): Cpu => new Cpu({ read: () => 0, write: () => true });
 
 describe('blue11 CPU: data movement and addressing modes', () => {
   it('MOV with every addressing mode', () => {
@@ -202,10 +204,7 @@ describe('blue11 CPU: flags', () => {
 
 describe('blue11 CPU: cycles per bus access (BLUE11_CPU.md §4)', () => {
   const cost = (line: string, opts = {}): number => {
-    const a = assemble(`${line}\nCOUNT: .WORD 0\nVAL: .WORD 0`, { origin: 0o1000 });
-    expect(a.errors).toEqual([]);
-    const m = new SimpleMachine(opts);
-    m.boot(a);
+    const { m } = boot(`${line}\nCOUNT: .WORD 0\nVAL: .WORD 0`, opts);
     m.cpu.r[1] = 0o2000;
     m.cpu.r[2] = 0o2100;
     return m.cpu.step().cycles;
@@ -226,16 +225,13 @@ describe('blue11 CPU: cycles per bus access (BLUE11_CPU.md §4)', () => {
   });
 
   it('RTS costs 2, RTI 3, a trap entry 4', () => {
-    const a = assemble(' JSR PC, SUB\n HALT\nSUB: RTS PC');
-    const m = new SimpleMachine();
-    m.boot(a);
-    m.cpu.step();
-    expect(m.cpu.step().cycles).toBe(2);
-    const b = assemble(' MOV #H, @#14\n BPT\n HALT\nH: RTI');
-    m.boot(b);
-    m.cpu.step();
-    expect(m.cpu.step().cycles).toBe(1 + 4); // BPT fetch + entry
-    expect(m.cpu.step().cycles).toBe(3);
+    const { cpu } = boot(' JSR PC, SUB\n HALT\nSUB: RTS PC');
+    cpu.step();
+    expect(cpu.step().cycles).toBe(2);
+    const t = boot(' MOV #H, @#14\n BPT\n HALT\nH: RTI').cpu;
+    t.step();
+    expect(t.step().cycles).toBe(1 + 4); // BPT fetch + entry
+    expect(t.step().cycles).toBe(3);
   });
 
   it('EIS adds a fixed internal cost', () => {
@@ -259,9 +255,7 @@ H:      MOV (SP), R5          ; return address pushed by the trap
   });
 
   it('onTrap can stop instead of vectoring (the host handles it)', () => {
-    const a = assemble(' MOV @#160000, R0\n HALT');
-    const m = new SimpleMachine();
-    m.boot(a);
+    const { m } = boot(' MOV @#160000, R0\n HALT');
     const seen: string[] = [];
     m.cpu.onTrap = (t) => { seen.push(t.cause); return 'stop'; };
     const r = m.run(100);
@@ -293,9 +287,7 @@ HI:     ADD #10, R1
   });
 
   it('stack limit traps a push below it', () => {
-    const a = assemble(' MOV #1000, SP\n MOV R0, -(SP)\n HALT');
-    const m = new SimpleMachine();
-    m.boot(a);
+    const { m } = boot(' MOV #1000, SP\n MOV R0, -(SP)\n HALT');
     m.cpu.stackLimit = 0o1000;
     m.cpu.onTrap = () => 'stop';
     const r = m.run(100);
@@ -345,8 +337,7 @@ CLK:    INC R1
   });
 
   it('a request at or below the CPU priority waits', () => {
-    const bus: Bus = { read: () => 0, write: () => true };
-    const c = new Cpu(bus);
+    const c = bareCpu();
     c.psw = 0o200; // priority 4
     c.interrupt(0o60, 4);
     c.waiting = true;
@@ -358,8 +349,7 @@ CLK:    INC R1
   });
 
   it('an interrupt the host stops on stays pending, and WAIT still waits', () => {
-    const bus: Bus = { read: () => 0, write: () => true };
-    const c = new Cpu(bus);
+    const c = bareCpu();
     c.r[7] = 0o1000;
     c.waiting = true;
     c.interrupt(0o60, 4);
@@ -385,10 +375,32 @@ CLK:    INC R1
     expect(cpu.r[0]).toBe(1);
   });
 
+  it('an interrupt the host withdraws or replaces in onTrap is not brought back', () => {
+    const { m } = boot('1$: BR 1$');
+    m.cpu.interrupt(0o300, 5);
+    m.cpu.onTrap = (t) => { m.cpu.cancelInterrupt(t.vector); return 'stop'; };
+    expect(m.run(100).reason).toBe('trap');
+    expect(m.cpu.save().pending).toEqual([]);
+    expect(m.run(100).reason).toBe('budget');
+    m.cpu.interrupt(0o300, 5);
+    m.cpu.onTrap = (t) => { m.cpu.interrupt(t.vector, 6); return 'stop'; };
+    expect(m.run(100).reason).toBe('trap');
+    expect(m.cpu.save().pending).toEqual([{ vector: 0o300, level: 6 }]);
+  });
+
+  it('continue stops at a breakpoint on the handler of an interrupt taken first', () => {
+    const { m, asm } = boot('1$: BR 1$\nH: RTI');
+    const h = asm.symbols.get('H')!;
+    m.write(0o300, h, false);
+    m.write(0o302, 0o340, false);
+    m.cpu.interrupt(0o300, 5);
+    const r = m.run(1000, new Set([h]));
+    expect(r.reason).toBe('breakpoint');
+    expect(m.cpu.r[7]).toBe(h);
+  });
+
   it('onModeChange reports PSW mode bits changing (the host gate)', () => {
-    const a = assemble(' MOV #140000, -(SP)\n MOV #U, -(SP)\n RTI\nU: HALT');
-    const m = new SimpleMachine();
-    m.boot(a);
+    const { m } = boot(' MOV #140000, -(SP)\n MOV #U, -(SP)\n RTI\nU: HALT');
     const changes: Array<[number, number]> = [];
     m.cpu.onModeChange = (n, old) => changes.push([n, old]);
     m.run(100);
@@ -440,13 +452,10 @@ describe('blue11 CPU: save / load and determinism', () => {
         HALT
 CLK:    INC R4
         RTI`;
-    const a = assemble(src);
-    const full = new SimpleMachine({ clockCycles: 37 });
-    full.boot(a);
+    const full = boot(src, { clockCycles: 37 }).m;
     full.run(100000);
 
-    const m1 = new SimpleMachine({ clockCycles: 37 });
-    m1.boot(a);
+    const m1 = boot(src, { clockCycles: 37 }).m;
     m1.run(1234);
     const state = m1.cpu.save();
     const ram = m1.ram.slice();

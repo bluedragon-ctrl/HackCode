@@ -126,7 +126,7 @@ directives `.TITLE .SBTTL .IDENT .ENABL .DSABL .LIST .NLIST .PAGE` are accepted 
 A **subset of DEC's original assembler** (RT-11 / RSX-11) with the same syntax and meaning:
 programs inside the subset assemble on the original assembler too, and listings read the
 same. Each claim
-is tested in `tests/blue11/syntax.test.ts` and `syntax-compat.test.ts`.
+is tested in `tests/blue11/syntax.test.ts` and `syntax-warnings.test.ts`.
 
 **The same as the original assembler:**
 - Statement format `label: OPCODE operands ; comment`, case-insensitive, commas with or

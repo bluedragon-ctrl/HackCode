@@ -9,8 +9,7 @@ import { SYMBOLS } from '../../src/core';
 import { HELP, inComment, parseInline, SECTIONS, wordAt, type Block, type Entry } from '../../src/ui/help';
 import { blockTexts } from '../../src/ui/help/model';
 import { SYMBOL_HELP } from '../../src/ui/help/symbols';
-import { TEST_MAP } from '../../src/ui/samples';
-import { Session } from '../../src/ui/session';
+import { loaded } from './helpers';
 
 const blocks = (): Array<{ section: string; block: Block }> =>
   SECTIONS.flatMap((s) => s.blocks.map((block) => ({ section: s.id, block })));
@@ -72,8 +71,7 @@ describe('help examples', () => {
   });
 
   it.each(codeBlocks().filter((c) => c.run).map((c, i) => [`${c.section} #${i}`, c] as const))('%s runs to its HALT', (_, c) => {
-    const s = new Session(TEST_MAP);
-    expect(s.load(c.text)).toEqual([]);
+    const s = loaded(c.text);
     const r = s.run(200);
     expect(r.stop).toBe('halt');
     const at = s.world.robot.cpu.r[7] - 2;
@@ -83,8 +81,7 @@ describe('help examples', () => {
   it('the documented results hold', () => {
     const run = (section: string, n = 0) => {
       const c = codeBlocks().filter((b) => b.section === section)[n];
-      const s = new Session(TEST_MAP);
-      s.load(c.text);
+      const s = loaded(c.text);
       s.run(200);
       return s.world.robot.cpu.r;
     };

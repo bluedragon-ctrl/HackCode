@@ -1,17 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { assemble, commentStart, disassemble, INSTRUCTIONS, octal, SimpleMachine } from '../../src/blue11';
-import { runAsm, words } from './helpers';
-
-const err = (src: string, opts = {}): string => {
-  const a = assemble(src, opts);
-  expect(a.ok).toBe(false);
-  return a.errors[0].message;
-};
+import { assemble, commentStart, disassemble, INSTRUCTIONS, octal } from '../../src/blue11';
+import { DIV16, MUL16 } from '../../src/simulator/examples';
+import { assembleOk } from '../helpers/asm';
+import { boot, err, runAsm, words, wordsOf } from './helpers';
 
 describe('blue11 assembler: encoding', () => {
   it('the listing example of BLUE11_CPU.md §3.5', () => {
     const syms = { DRVCS: 0o176400, DRVDIR: 0o176404, DRVCNT: 0o176406, GO: 1 };
-    const a = assemble(`
+    const a = assembleOk(`
         CLR  R1
         MOV  #3, @#DRVCNT
         MOV  R1, @#DRVDIR
@@ -21,10 +17,7 @@ describe('blue11 assembler: encoding', () => {
         WAIT
         BR   2$
 3$:     HALT`, { origin: 0o2000, symbols: syms });
-    expect(a.errors).toEqual([]);
-    const w: string[] = [];
-    for (let i = 0; i < a.bytes.length; i += 2) w.push(octal(a.bytes[i] | (a.bytes[i + 1] << 8)));
-    expect(w.slice(0, 15)).toEqual([
+    expect(wordsOf(a).slice(0, 15).map((w) => octal(w))).toEqual([
       '005001', '012737', '000003', '176406', '010137', '176404', '012737', '000001', '176400',
       '105737', '176400', '100402', '000001', '000773', '000000',
     ]);
@@ -70,18 +63,19 @@ describe('blue11 assembler: encoding', () => {
       expect(words(d.text.replace(/\b0*(\d+)\b/g, '$1')), d.text).toEqual(w);
     }
   });
+
+  it('flag operations combine with !, as the disassembler writes them', () => {
+    expect(words(' CLC!CLV')).toEqual([0o000243]);
+    expect(words(' SEN ! SEZ ; comment')).toEqual([0o000274]);
+    expect(err(' CLC!SEV')).toMatch(/cannot be combined/); // the original assembler would quietly make it a set
+    expect(err(' CLC!HALT')).toMatch(/only flag operations/);
+    expect(err('CLC!FOO')).toMatch(/only flag operations/);
+    expect(err(' CLC!CLV R0')).toMatch(/no operands/);
+    expect(words(' MOV #1!2, R0')).toEqual([0o012700, 3]); // ! between values is OR
+  });
 });
 
 describe('blue11 assembler: numbers, expressions, symbols', () => {
-  it('octal by default, a trailing dot for decimal, ^D ^O ^B, characters', () => {
-    expect(words('.WORD 20, 20., ^D20, ^O20, ^B101, \'A, "AB')).toEqual([16, 20, 20, 16, 5, 65, 0x4241]);
-    expect(err('.WORD 19')).toMatch(/not octal.*19\./);
-  });
-
-  it('expressions run left to right; < > groups', () => {
-    expect(words('.WORD 2+3*4, 2+<3*4>, 10-1&6, 1!2, ^C0, -1')).toEqual([20, 14, 6, 3, 0xffff, 0xffff]);
-  });
-
   it('symbols, register symbols, the location counter', () => {
     const a = assemble(`
 N = 5
@@ -102,25 +96,8 @@ END:    .WORD END-HERE`);
     expect(words(' MOV #LATER, R0\nLATER = 7')).toEqual([0o012700, 7]);
   });
 
-  it('local labels belong to the routine between two labels', () => {
-    const a = assemble(`
-A:      BR 1$
-1$:     BR A
-B:      BR 1$
-1$:     HALT`);
-    expect(a.errors).toEqual([]);
-    expect(words('A: BR 1$\n1$: BR A\nB: BR 1$\n1$: HALT')).toEqual([0o000400, 0o000776, 0o000400, 0]);
-  });
-
   it('predefined symbols, case-insensitive', () => {
     expect(words('mov @#bat, r0', { symbols: { BAT: 0o177000 } })).toEqual([0o013700, 0o177000]);
-  });
-
-  it('DEC names: at most 6 characters, no "_"; long names on request', () => {
-    expect(err('TOOLONG: HALT')).toMatch(/at most 6 characters/);
-    expect(err('A_B = 1')).toMatch(/"_"/);
-    expect(err(' MOV #ERR_BLOCKED, R0', { symbols: { ERR_BLOCKED: 1 } })).toMatch(/"_"/);
-    expect(assemble('ERR_BLOCKED = 1\nLONGLABEL: MOV #ERR_BLOCKED, R0', { names: 'long' }).ok).toBe(true);
   });
 });
 
@@ -148,15 +125,15 @@ W:      .WORD 1`);
     expect([...a.bytes]).toEqual([0o000, 0o012, 65, 59, 66, 0]);
   });
 
-  it('.END sets the start address and stops', () => {
-    const a = assemble(' .WORD 0\nGO: HALT\n .END GO\n garbage here');
-    expect(a.ok).toBe(true);
-    expect(a.start).toBe(0o1002);
-  });
-
   it('the source line map', () => {
     const a = assemble('; comment\n CLR R0\n\n MOV #1, R1\n HALT');
     expect([...a.lineAt]).toEqual([[0o1000, 2], [0o1002, 4], [0o1006, 5]]);
+  });
+
+  it('a program filling nearly all of memory assembles', () => {
+    const a = assemble('. = 0\n.BLKW 77777\n.WORD 1');
+    expect(a.ok).toBe(true);
+    expect(a.bytes.length).toBe(0o177776 + 2);
   });
 });
 
@@ -179,6 +156,8 @@ describe('blue11 assembler: errors are values with line and column', () => {
     expect(err(' MOV #R1, R0')).toMatch(/register/);
     expect(err(' JMP R1')).toMatch(/not a register/);
     expect(err(' SOB R1, X\n HALT\nX: HALT')).toMatch(/backwards/);
+    expect(err(' SOB R1, X\nX: HALT')).toMatch(/backwards/); // offset 0: a jump to the next instruction
+    expect(words(' SOB R1, .')).toEqual([0o077101]);
     expect(err('.BYTE 400')).toMatch(/byte/);
   });
 });
@@ -190,49 +169,20 @@ describe('blue11 disassembler', () => {
     expect(disassemble(read, 0o1000).text).toBe('BR 001012');
     expect(disassemble(read, 0o1002).text).toBe('MOV @#001012, R0');
     expect(disassemble(read, 0o1006, { nameOf: (a) => (a === 0o1012 ? 'X' : undefined) }).text).toBe('JSR PC, X');
-    expect(disassemble(() => 0o000243, 0).text).toBe('CLC!CLV');
     expect(disassemble(() => 0o000007, 0).text).toBe('.WORD 000007');
+  });
+
+  it('writes every flag-operation combination so that it assembles back', () => {
+    expect(disassemble(() => 0o000243, 0).text).toBe('CLC!CLV');
+    for (let w = 0o000241; w < 0o000300; w++) {
+      if (w === 0o000260) continue;
+      const text = disassemble(() => w, 0).text;
+      expect(words(` ${text}`), text).toEqual([w]);
+    }
   });
 });
 
-describe('blue11 programs from the design (BLUE11_CPU.md §9)', () => {
-  const MUL16 = `
-MUL16:  MOV  R2, -(SP)
-        CLR  R2
-1$:     TST  R1
-        BEQ  3$
-        CLC
-        ROR  R1
-        BCC  2$
-        ADD  R0, R2
-2$:     ASL  R0
-        BR   1$
-3$:     MOV  R2, R0
-        MOV  (SP)+, R2
-        RTS  PC`;
-  const DIV16 = `
-DIV16:  TST  R1
-        BNE  1$
-        SEC
-        RTS  PC
-1$:     MOV  R2, -(SP)
-        MOV  R3, -(SP)
-        MOV  R1, R2
-        CLR  R1
-        MOV  #16., R3
-2$:     ASL  R0
-        ROL  R1
-        BCS  4$
-        CMP  R1, R2
-        BLO  3$
-4$:     SUB  R2, R1
-        INC  R0
-3$:     SOB  R3, 2$
-        MOV  (SP)+, R3
-        MOV  (SP)+, R2
-        CLC
-        RTS  PC`;
-
+describe('blue11 programs from the design (BLUE11_CPU.md §9; src/simulator/examples.ts)', () => {
   it.each([[7, 9], [123, 100], [0, 55], [255, 255], [1000, 65]])('MUL16 %i × %i', (a, b) => {
     const { cpu } = runAsm(` MOV #${a}., R0\n MOV #${b}., R1\n MOV #77, R2\n JSR PC, MUL16\n HALT\n${MUL16}`);
     expect(cpu.r[0]).toBe((a * b) & 0xffff);
@@ -259,22 +209,8 @@ DIV16:  TST  R1
     expect(cycles).toBeLessThan(90);
   });
 
-  it('hello world on the console', () => {
-    const { m } = runAsm(`
-        MOV #MSG, R1
-1$:     MOVB (R1)+, R0
-        BEQ 3$
-2$:     TSTB @#177564         ; transmitter ready?
-        BPL 2$
-        MOVB R0, @#177566
-        BR 1$
-3$:     HALT
-MSG:    .ASCIZ /HELLO, WORLD/`);
-    expect(m.output).toBe('HELLO, WORLD');
-  });
-
   it('echoes keyboard input with interrupts', () => {
-    const a = assemble(`
+    const { m } = boot(`
         MOV #RX, @#60
         MOV #200, @#62
         MOV #100, @#177560    ; receiver interrupts on
@@ -282,8 +218,6 @@ MSG:    .ASCIZ /HELLO, WORLD/`);
         BR 1$
 RX:     MOVB @#177562, @#177566
         RTI`);
-    const m = new SimpleMachine();
-    m.boot(a);
     m.run(100);
     m.type('h'); m.type('i');
     m.run(1000);

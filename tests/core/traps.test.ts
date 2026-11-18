@@ -1,6 +1,6 @@
 /** A trap with no handler stops the robot's CPU instead of jumping to address 0 (DESIGN.md §4 "Traps"). */
 import { describe, expect, it } from 'vitest';
-import { load, runUntilStop } from './helpers';
+import { load } from './helpers';
 
 describe('traps with no handler', () => {
   const cases: Array<[string, string, string, number]> = [
@@ -16,7 +16,7 @@ describe('traps with no handler', () => {
   for (const [what, insn, cause, vector] of cases) {
     it(`${what} stops with cause ${cause}`, () => {
       const w = load(`START: NOP\n        ${insn}\n        HALT`);
-      const r = runUntilStop(w);
+      const r = w.run(1000);
       expect(r.reason).toBe('trap');
       expect(r.trap).toMatchObject({ cause, vector, pc: 0o1002 });
     });
@@ -24,18 +24,18 @@ describe('traps with no handler', () => {
 
   it('a fault leaves the PC at the instruction, BPT after it, and Continue goes on', () => {
     let w = load('START: MOV @#1, R0\n HALT');
-    runUntilStop(w);
+    w.run(1000);
     expect(w.robot.cpu.r[7]).toBe(0o1000);
     w = load('START: BPT\n MOV #7, R0\n HALT');
-    runUntilStop(w);
+    w.run(1000);
     expect(w.robot.cpu.r[7]).toBe(0o1002);
-    expect(runUntilStop(w).reason).toBe('halt');
+    expect(w.run(1000).reason).toBe('halt');
     expect(w.robot.cpu.r[0]).toBe(7);
   });
 
   it('an interrupt with an empty vector stops', () => {
     const w = load('START: MOV #CS.IE, @#LKS\n1$: BR 1$');
-    const r = runUntilStop(w);
+    const r = w.run(1000);
     expect(r.trap).toMatchObject({ cause: 'interrupt', vector: 0o100 });
   });
 
@@ -47,7 +47,7 @@ START:  MOV #OOPS, @#4
         HALT
 OOPS:   MOV #42, R1
         HALT`);
-    expect(runUntilStop(w).reason).toBe('halt');
+    expect(w.run(1000).reason).toBe('halt');
     expect(w.robot.cpu.r[1]).toBe(0o42);
   });
 });

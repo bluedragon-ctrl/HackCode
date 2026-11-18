@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   CHARGE_RATE, COST, CSR, ENERGY_MAX, ERR, FLAG, LASER_DAMAGE, loot, LOOT, OBJECTS, record, REG, TICKS, TYPE, VECTOR,
 } from '../../src/core';
-import { load, world } from './helpers';
+import { load, r, reg, world } from './helpers';
 
 /** Poll a CSR until READY, then halt. R0 = CSR, R1 = error register. */
 const poll = (csr: string, err: string) => `
@@ -17,19 +17,18 @@ describe('common CSR layout', () => {
   it('is READY with no error after power-up', () => {
     const w = world();
     for (const a of [REG.WHLCSR, REG.LSRCSR, REG.SCNCSR, REG.GRBCSR]) {
-      expect(w.robot.machine.read(a, false)).toBe(CSR.READY);
-      expect(w.robot.machine.read(a + 2, false)).toBe(0);
+      expect(reg(w, a)).toBe(CSR.READY);
+      expect(reg(w, a + 2)).toBe(0);
     }
   });
 
   it('GO clears READY; the action completes after its ticks; GO reads as 0', () => {
     const w = load(` MOV #WH.LFT!CS.GO, @#WHLCSR\n` + poll('WHLCSR', 'WHLERR'));
     expect(w.runTick().reason).toBe('tick');
-    expect(w.robot.machine.read(REG.WHLCSR, false)).toBe(0o2); // function kept, not READY
-    const r = w.run(10);
-    expect(r.reason).toBe('halt');
+    expect(reg(w, REG.WHLCSR)).toBe(0o2); // function kept, not READY
+    expect(w.run(10).reason).toBe('halt');
     expect(w.tick).toBe(TICKS.TURN);
-    expect(w.robot.cpu.r[0]).toBe(CSR.READY | 0o2);
+    expect(r(w, 0)).toBe(CSR.READY | 0o2);
     expect(w.robot.heading).toBe(0); // east → north
   });
 
@@ -52,7 +51,7 @@ describe('common CSR layout', () => {
         MOV #340, @#177776
 1$:     BR 1$`);
     w.run(5);
-    expect(w.robot.cpu.r[0]).toBe(0o2 | CSR.IE);
+    expect(r(w, 0)).toBe(0o2 | CSR.IE);
     expect(w.robot.heading).toBe(0); // one left turn only
   });
 
@@ -67,8 +66,8 @@ DONE:   MOV #1, R5
         MOV @#STHDG, R4
         RTI`);
     expect(w.run(10).reason).toBe('halt');
-    expect(w.robot.cpu.r[5]).toBe(1);
-    expect(w.robot.cpu.r[4]).toBe(0);
+    expect(r(w, 5)).toBe(1);
+    expect(r(w, 4)).toBe(0);
     expect(w.tick).toBe(TICKS.TURN);
     expect(VECTOR.WHEELS).toBe(0o300);
   });
@@ -86,7 +85,7 @@ DONE:   MOV #1, R5
 DONE:   INC R5
         RTI`);
     w.run(2);
-    expect(w.robot.cpu.r[5]).toBe(1);
+    expect(r(w, 5)).toBe(1);
   });
 
   it('a WAIT with nothing that can wake the robot freezes the world', () => {
@@ -102,23 +101,23 @@ DONE:   INC R5
         MOVB #WH.LFT!CS.GO, @#WHLCSR
         HALT`);
     w.run(1);
-    expect(w.robot.machine.read(REG.WHLERR, false)).toBe(0);
-    expect(w.robot.machine.read(REG.WHLCSR, false)).toBe(0o2);
+    expect(reg(w, REG.WHLERR)).toBe(0);
+    expect(reg(w, REG.WHLCSR)).toBe(0o2);
   });
 
   it('a bad function fails at once with ERROR', () => {
     const w = load(` MOV #16!CS.GO, @#LSRCSR\n` + poll('LSRCSR', 'LSRERR'));
     w.run(1);
     expect(w.tick).toBe(0);
-    expect(w.robot.cpu.r[0]).toBe(CSR.READY | CSR.ERROR | 0o16);
-    expect(w.robot.cpu.r[1]).toBe(ERR.FUNCTION);
+    expect(r(w, 0)).toBe(CSR.READY | CSR.ERROR | 0o16);
+    expect(r(w, 1)).toBe(ERR.FUNCTION);
   });
 
   it('refuses with ERROR "no power" without enough energy; a new GO clears ERROR', () => {
-    const w = load(` MOV #LS.FIR!CS.GO, @#LSRCSR\n` + poll('LSRCSR', 'LSRERR'), { robot: { x: 2, y: 2, heading: 1, energy: COST.LASER - 1 } });
+    const w = load(` MOV #LS.FIR!CS.GO, @#LSRCSR\n` + poll('LSRCSR', 'LSRERR'), { robot: { energy: COST.LASER - 1 } });
     w.run(1);
-    expect(w.robot.cpu.r[1]).toBe(ERR.POWER);
-    expect(w.robot.cpu.r[0] & CSR.ERROR).toBeTruthy();
+    expect(r(w, 1)).toBe(ERR.POWER);
+    expect(r(w, 0) & CSR.ERROR).toBeTruthy();
     expect(w.robot.energy).toBe(COST.LASER - 1);
   });
 
@@ -131,61 +130,61 @@ DONE:   INC R5
         MOV @#WHLCSR, R0
 1$:     BR 1$`);
     w.run(20);
-    expect(w.robot.cpu.r[0]).toBe(CSR.READY);
+    expect(r(w, 0)).toBe(CSR.READY);
     expect(w.robot.x).toBe(2);
   });
 });
 
 describe('wheels', () => {
+  /** Drive `count` cells (function `fn`), then halt with R1 = the error. */
+  const wheels = (count: number, fn = 'WH.FWD') => ` MOV #${count}, @#WHLCNT\n MOV #${fn}!CS.GO, @#WHLCSR\n` + poll('WHLCSR', 'WHLERR');
   it('drives forward N cells, one cell every TICKS.MOVE ticks; WHLCNT counts down', () => {
-    const w = load(`
-        MOV #3, @#WHLCNT
-        MOV #WH.FWD!CS.GO, @#WHLCSR` + poll('WHLCSR', 'WHLERR'));
+    const w = load(wheels(3));
     const xs: number[] = [];
     const counts: number[] = [];
     for (let t = 0; t < 3 * TICKS.MOVE; t++) {
       w.runTick();
       xs.push(w.robot.x);
-      counts.push(w.robot.machine.read(REG.WHLCNT, false));
+      counts.push(reg(w, REG.WHLCNT));
     }
     expect(xs).toEqual([2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5]);
     expect(counts).toEqual([3, 3, 3, 2, 2, 2, 2, 1, 1, 1, 1, 0]);
     expect(w.runTick().reason).toBe('halt');
-    expect(w.robot.cpu.r[1]).toBe(0);
+    expect(r(w, 1)).toBe(0);
     expect(w.robot.energy).toBe(ENERGY_MAX - 3 * COST.MOVE - w.robot.cpuEnergyUsed);
   });
 
   it('moves the robot record on the occupant layer', () => {
-    const w = load(` MOV #1, @#WHLCNT\n MOV #WH.FWD!CS.GO, @#WHLCSR\n` + poll('WHLCSR', 'WHLERR'));
+    const w = load(wheels(1));
     w.run(10);
     expect(w.grid.typeAt('occupant', 2, 2)).toBe(0);
     expect(w.grid.get('occupant', 3, 2)).toEqual({ type: TYPE.ROBOT, hp: 100, flags: FLAG.MOBILE | FLAG.SOLID | FLAG.OPAQUE, loot: 0 });
   });
 
   it('stops with ERROR "blocked" at an occupant or the edge; WHLCNT keeps the cells left', () => {
-    const w = load(` MOV #5, @#WHLCNT\n MOV #WH.FWD!CS.GO, @#WHLCSR\n` + poll('WHLCSR', 'WHLERR'));
+    const w = load(wheels(5));
     w.grid.set('occupant', 4, 2, OBJECTS.wall());
     w.run(50);
     expect(w.robot.x).toBe(3);
-    expect(w.robot.cpu.r[1]).toBe(ERR.BLOCKED);
-    expect(w.robot.machine.read(REG.WHLCNT, false)).toBe(4);
+    expect(r(w, 1)).toBe(ERR.BLOCKED);
+    expect(reg(w, REG.WHLCNT)).toBe(4);
     expect(w.tick).toBe(2 * TICKS.MOVE);
 
-    const e = load(` MOV #5, @#WHLCNT\n MOV #WH.FWD!CS.GO, @#WHLCSR\n` + poll('WHLCSR', 'WHLERR'), { robot: { x: 10, y: 2, heading: 1 } });
+    const e = load(wheels(5), { robot: { x: 10 } });
     e.run(50);
     expect(e.robot.x).toBe(11);
-    expect(e.robot.cpu.r[1]).toBe(ERR.BLOCKED);
+    expect(r(e, 1)).toBe(ERR.BLOCKED);
   });
 
   it('floor items do not block', () => {
-    const w = load(` MOV #2, @#WHLCNT\n MOV #WH.FWD!CS.GO, @#WHLCSR\n` + poll('WHLCSR', 'WHLERR'));
+    const w = load(wheels(2));
     w.grid.set('floor', 3, 2, OBJECTS.coins(1));
     w.run(50);
     expect(w.robot.x).toBe(4);
   });
 
   it('backs up without turning', () => {
-    const w = load(` MOV #2, @#WHLCNT\n MOV #WH.BAK!CS.GO, @#WHLCSR\n` + poll('WHLCSR', 'WHLERR'));
+    const w = load(wheels(2, 'WH.BAK'));
     w.run(50);
     expect([w.robot.x, w.robot.heading]).toEqual([0, 1]);
   });
@@ -208,7 +207,7 @@ describe('wheels', () => {
   it('count 0 is a bad argument', () => {
     const w = load(` MOV #WH.FWD!CS.GO, @#WHLCSR\n` + poll('WHLCSR', 'WHLERR'));
     w.run(1);
-    expect(w.robot.cpu.r[1]).toBe(ERR.ARGUMENT);
+    expect(r(w, 1)).toBe(ERR.ARGUMENT);
   });
 
   it('runs out of power mid-move', () => {
@@ -221,10 +220,10 @@ describe('wheels', () => {
         WAIT
         HALT
 DONE:   MOV @#WHLERR, R1
-        RTI`, { robot: { x: 2, y: 2, heading: 1, energy: 2 * COST.MOVE + 1 } });
+        RTI`, { robot: { energy: 2 * COST.MOVE + 1 } });
     w.run(50);
     expect(w.robot.x).toBe(4);
-    expect(w.robot.cpu.r[1]).toBe(ERR.POWER);
+    expect(r(w, 1)).toBe(ERR.POWER);
   });
 });
 
@@ -237,7 +236,7 @@ describe('laser', () => {
     w.grid.set('occupant', 5, 2, OBJECTS.wall());
     w.run(10);
     expect(w.tick).toBe(TICKS.LASER);
-    expect(w.robot.machine.read(REG.LSRDST, false)).toBe(2);
+    expect(reg(w, REG.LSRDST)).toBe(2);
     expect(w.grid.get('occupant', 4, 2).hp).toBe(100 - LASER_DAMAGE);
     expect(w.grid.get('occupant', 5, 2).hp).toBe(255);
     expect(w.robot.energy).toBe(ENERGY_MAX - COST.LASER - w.robot.cpuEnergyUsed);
@@ -247,8 +246,8 @@ describe('laser', () => {
     const w = load(fire);
     w.grid.set('occupant', 6, 2, OBJECTS.wall());
     w.run(10);
-    expect(w.robot.machine.read(REG.LSRDST, false)).toBe(0);
-    expect(w.robot.cpu.r[1]).toBe(0);
+    expect(reg(w, REG.LSRDST)).toBe(0);
+    expect(r(w, 1)).toBe(0);
     expect(w.grid.get('occupant', 6, 2).hp).toBe(255);
   });
 
@@ -280,9 +279,9 @@ describe('laser, aimed', () => {
     const w = load(aim('177002'));
     w.grid.set('occupant', 4, 0, monster());
     w.run(10);
-    expect(w.robot.cpu.r[1]).toBe(0);
+    expect(r(w, 1)).toBe(0);
     expect(w.tick).toBe(TICKS.LASER);
-    expect(w.robot.machine.read(REG.LSRDST, false)).toBe(2);
+    expect(reg(w, REG.LSRDST)).toBe(2);
     expect(w.grid.get('occupant', 4, 0).hp).toBe(100 - LASER_DAMAGE);
     expect(w.robot.energy).toBe(ENERGY_MAX - COST.LASER - w.robot.cpuEnergyUsed);
   });
@@ -293,7 +292,7 @@ describe('laser, aimed', () => {
     w.grid.set('occupant', 3, 2, OBJECTS.wall());
     w.grid.set('occupant', 4, 3, monster());
     w.run(10);
-    expect(w.robot.machine.read(REG.LSRDST, false)).toBe(1);
+    expect(reg(w, REG.LSRDST)).toBe(1);
     expect(w.grid.get('occupant', 3, 2).hp).toBe(255 - LASER_DAMAGE);
     expect(w.grid.get('occupant', 4, 3).hp).toBe(100);
   });
@@ -302,8 +301,8 @@ describe('laser, aimed', () => {
     const w = load(aim('1'));
     w.grid.set('occupant', 4, 2, monster());
     w.run(10);
-    expect(w.robot.machine.read(REG.LSRDST, false)).toBe(0);
-    expect(w.robot.cpu.r[1]).toBe(0);
+    expect(reg(w, REG.LSRDST)).toBe(0);
+    expect(r(w, 1)).toBe(0);
     expect(w.grid.get('occupant', 4, 2).hp).toBe(100);
   });
 
@@ -311,16 +310,16 @@ describe('laser, aimed', () => {
     const w = load(aim('177376'), { robot: { x: 5, y: 5, heading: 0 } });
     w.grid.set('occupant', 3, 3, monster());
     w.run(10);
-    expect(w.robot.machine.read(REG.LSRDST, false)).toBe(2);
+    expect(reg(w, REG.LSRDST)).toBe(2);
     expect(w.grid.get('occupant', 3, 3).hp).toBe(100 - LASER_DAMAGE);
   });
 
   it('a target outside the 90° arc or the range is a bad argument, at once and free', () => {
     // Facing east: (1,2) too far aside, (-1,0) behind, (0,0) the robot, (3,1) beyond range.
     for (const tgt of ['001001', '377', '0', '000403']) {
-      const w = load(aim(tgt), { robot: { x: 5, y: 5, heading: 1 } });
+      const w = load(aim(tgt), { robot: { x: 5, y: 5 } });
       w.run(1);
-      expect(w.robot.cpu.r[1], tgt).toBe(ERR.ARGUMENT);
+      expect(r(w, 1), tgt).toBe(ERR.ARGUMENT);
       expect(w.tick, tgt).toBe(0);
       expect(w.robot.energy, tgt).toBe(ENERGY_MAX - w.robot.cpuEnergyUsed);
     }
@@ -329,8 +328,8 @@ describe('laser, aimed', () => {
   it('LSRTGT reads back and takes byte writes; LSRDST is read-only', () => {
     const w = load(' MOV #1234, @#LSRTGT\n MOVB #377, @#LSRTGT+1\n MOV #7, @#LSRDST\n HALT');
     w.run(1);
-    expect(w.robot.machine.read(REG.LSRTGT, false)).toBe(0o177634);
-    expect(w.robot.machine.read(REG.LSRDST, false)).toBe(0);
+    expect(reg(w, REG.LSRTGT)).toBe(0o177634);
+    expect(reg(w, REG.LSRDST)).toBe(0);
   });
 
   it('takes the DX/DY word of a scanner record as it is', () => {
@@ -348,7 +347,7 @@ describe('laser, aimed', () => {
 BUF:    .BLKW 10.`);
     w.grid.set('occupant', 3, 1, monster());
     w.run(20);
-    expect(w.robot.machine.read(REG.LSRDST, false)).toBe(1);
+    expect(reg(w, REG.LSRDST)).toBe(1);
     expect(w.grid.get('occupant', 3, 1).hp).toBe(100 - LASER_DAMAGE);
   });
 });
@@ -361,7 +360,7 @@ describe('scanner', () => {
 BUF:    .BLKW 40.`;
 
   /** The records in the buffer up to the TYPE 0 terminator: [type, hp, flags, loot, dx, dy]. */
-  function records(w: ReturnType<typeof world>, at: number) {
+  function records(w: ReturnType<typeof world>, at = w.robot.symbols.get('BUF')!) {
     const m = w.robot.machine;
     const out: number[][] = [];
     for (let a = at; ; a += 6) {
@@ -380,9 +379,8 @@ BUF:    .BLKW 40.`;
     w.grid.set('occupant', 4, 1, OBJECTS.wall()); // dx +2, dy -1
     w.run(10);
     expect(w.tick).toBe(TICKS.SCAN);
-    expect(w.robot.cpu.r[1]).toBe(0);
-    const buf = w.robot.symbols.get('BUF')!;
-    expect(records(w, buf)).toEqual([
+    expect(r(w, 1)).toBe(0);
+    expect(records(w)).toEqual([
       [TYPE.COIN, 1, FLAG.COLLECTIBLE, 0x12, -1, 0],
       [TYPE.WALL, 255, 0o14, 0, 2, -1],
       [0o40, 30, 0o7, 0, 0, 3],
@@ -397,8 +395,7 @@ BUF:    .BLKW 40.`;
     w.grid.set('occupant', 2, 4, record(0o40, 9, FLAG.SOLID)); // dy 2, visible (not opaque)
     w.grid.set('occupant', 2, 5, record(0o40, 8, FLAG.SOLID)); // behind it: still visible
     w.run(10);
-    const buf = w.robot.symbols.get('BUF')!;
-    expect(records(w, buf).map((r) => [r[0], r[4], r[5]])).toEqual([[TYPE.WALL, 2, 0], [0o40, 0, 2], [0o40, 0, 3]]);
+    expect(records(w).map((r) => [r[0], r[4], r[5]])).toEqual([[TYPE.WALL, 2, 0], [0o40, 0, 2], [0o40, 0, 3]]);
   });
 
   it('lists the occupant before the floor item of the same cell, and the floor under the robot', () => {
@@ -407,8 +404,7 @@ BUF:    .BLKW 40.`;
     w.grid.set('floor', 3, 2, OBJECTS.coins(1));
     w.grid.set('occupant', 3, 2, record(0o40, 9, FLAG.SOLID));
     w.run(10);
-    const buf = w.robot.symbols.get('BUF')!;
-    expect(records(w, buf).map((r) => [r[0], r[4], r[5]])).toEqual([[TYPE.CHIP, 0, 0], [0o40, 1, 0], [TYPE.COIN, 1, 0]]);
+    expect(records(w).map((r) => [r[0], r[4], r[5]])).toEqual([[TYPE.CHIP, 0, 0], [0o40, 1, 0], [TYPE.COIN, 1, 0]]);
   });
 
   it('SC.NWL leaves out walls', () => {
@@ -416,8 +412,7 @@ BUF:    .BLKW 40.`;
     w.grid.set('occupant', 3, 2, OBJECTS.wall());
     w.grid.set('occupant', 1, 2, record(0o40, 9, FLAG.SOLID));
     w.run(10);
-    const buf = w.robot.symbols.get('BUF')!;
-    expect(records(w, buf).map((r) => r[0])).toEqual([0o40]);
+    expect(records(w).map((r) => r[0])).toEqual([0o40]);
   });
 
   it('writes only what fits: (SCNLEN - 2) / 6 records and the terminator', () => {
@@ -426,8 +421,8 @@ BUF:    .BLKW 40.`;
     const buf = w.robot.symbols.get('BUF')!;
     w.robot.machine.ram.fill(0o125, buf, buf + 80);
     w.run(10);
-    expect(records(w, buf).map((r) => r[4])).toEqual([1, 2]);
-    expect(w.robot.machine.read(buf + 12, false)).toBe(0);
+    expect(records(w).map((r) => r[4])).toEqual([1, 2]);
+    expect(reg(w, buf + 12)).toBe(0);
     expect(w.robot.machine.read(buf + 14, true)).toBe(0o125); // untouched
   });
 
@@ -435,7 +430,7 @@ BUF:    .BLKW 40.`;
     for (const [buf, len] of [['1001', '10'], ['BUF', '1'], ['137770', '12'], ['140000', '10'], ['176400', '10']]) {
       const w = load(scan('SC.ALL', buf, len));
       w.run(2);
-      expect(w.robot.cpu.r[1], `${buf} ${len}`).toBe(ERR.ADDRESS);
+      expect(r(w, 1), `${buf} ${len}`).toBe(ERR.ADDRESS);
       expect(w.tick).toBe(0);
     }
   });
@@ -445,8 +440,8 @@ BUF:    .BLKW 40.`;
     const buf = w.robot.symbols.get('BUF')!;
     w.robot.machine.ram.fill(0o377, buf, buf + 10);
     w.run(10);
-    expect(w.robot.machine.read(buf, false)).toBe(0);
-    expect(w.robot.machine.read(buf + 2, false)).toBe(0o177777);
+    expect(reg(w, buf)).toBe(0);
+    expect(reg(w, buf + 2)).toBe(0o177777);
   });
 });
 
@@ -459,9 +454,9 @@ describe('grabber', () => {
     w.robot.inventory.set([TYPE.CHIP, 1, FLAG.COLLECTIBLE, 0], 0);
     w.run(10);
     expect(w.tick).toBe(TICKS.GRAB);
-    expect(w.robot.cpu.r[1]).toBe(0);
+    expect(r(w, 1)).toBe(0);
     expect(w.grid.typeAt('floor', 3, 2)).toBe(0);
-    expect(w.robot.machine.read(REG.GRBSLT, false)).toBe(1);
+    expect(reg(w, REG.GRBSLT)).toBe(1);
     const m = w.robot.machine;
     expect([m.read(REG.INV + 4, false), m.read(REG.INV + 6, false)]).toEqual([TYPE.CHIP | (1 << 8), FLAG.COLLECTIBLE]);
   });
@@ -471,8 +466,8 @@ describe('grabber', () => {
     w.grid.set('floor', 3, 2, OBJECTS.coins(7));
     w.run(10);
     expect(w.robot.coins).toBe(7);
-    expect(w.robot.machine.read(REG.STCOIN, false)).toBe(7);
-    expect(w.robot.machine.read(REG.INV, false)).toBe(0);
+    expect(reg(w, REG.STCOIN)).toBe(7);
+    expect(reg(w, REG.INV)).toBe(0);
   });
 
   it('takes a collectible occupant before the floor', () => {
@@ -489,13 +484,13 @@ describe('grabber', () => {
     const a = load(grab());
     a.grid.set('floor', 3, 2, OBJECTS.wall());
     a.run(10);
-    expect(a.robot.cpu.r[1]).toBe(ERR.NOTHING);
+    expect(r(a, 1)).toBe(ERR.NOTHING);
 
     const b = load(grab());
     b.grid.set('floor', 3, 2, OBJECTS.chip());
     for (let i = 0; i < 4; i++) b.robot.inventory.set([TYPE.CHIP, 1, FLAG.COLLECTIBLE, 0], i * 4);
     b.run(10);
-    expect(b.robot.cpu.r[1]).toBe(ERR.FULL);
+    expect(r(b, 1)).toBe(ERR.FULL);
     expect(b.grid.typeAt('floor', 3, 2)).toBe(TYPE.CHIP);
   });
 
@@ -503,7 +498,7 @@ describe('grabber', () => {
     const w = load(` MOV #2, @#GRBSLT\n` + grab('GR.DRP'));
     w.robot.inventory.set([TYPE.CHIP, 1, FLAG.COLLECTIBLE, 0], 8);
     w.run(10);
-    expect(w.robot.cpu.r[1]).toBe(0);
+    expect(r(w, 1)).toBe(0);
     expect(w.grid.get('floor', 3, 2)).toEqual(OBJECTS.chip());
     expect(w.robot.inventory[8]).toBe(0);
   });
@@ -511,15 +506,15 @@ describe('grabber', () => {
   it('drop errors: empty or bad slot, floor taken', () => {
     const a = load(` MOV #4, @#GRBSLT\n` + grab('GR.DRP'));
     a.run(10);
-    expect(a.robot.cpu.r[1]).toBe(ERR.ARGUMENT);
+    expect(r(a, 1)).toBe(ERR.ARGUMENT);
     const b = load(` MOV #1, @#GRBSLT\n` + grab('GR.DRP'));
     b.run(10);
-    expect(b.robot.cpu.r[1]).toBe(ERR.ARGUMENT);
+    expect(r(b, 1)).toBe(ERR.ARGUMENT);
     const c = load(grab('GR.DRP'));
     c.robot.inventory.set([TYPE.CHIP, 1, FLAG.COLLECTIBLE, 0], 0);
     c.grid.set('floor', 3, 2, OBJECTS.coins(1));
     c.run(10);
-    expect(c.robot.cpu.r[1]).toBe(ERR.BLOCKED);
+    expect(r(c, 1)).toBe(ERR.BLOCKED);
     expect(c.robot.inventory[0]).toBe(TYPE.CHIP);
   });
 });
@@ -543,7 +538,7 @@ describe('status and inventory', () => {
   it('inventory slots are 4-byte records at INV + 4n', () => {
     const w = world();
     w.robot.inventory.set([1, 2, 3, 4], 12);
-    expect(w.robot.machine.read(REG.INV + 12, false)).toBe(1 | (2 << 8));
+    expect(reg(w, REG.INV + 12)).toBe(1 | (2 << 8));
     expect(w.robot.machine.read(REG.INV + 15, true)).toBe(4);
   });
 });
@@ -552,7 +547,7 @@ describe('dock', () => {
   const dock = (count = 0) => ` MOV #${count.toString(8)}, @#DCKCNT\n MOV #DK.CHG!CS.GO, @#DCKCSR\n` + poll('DCKCSR', 'DCKERR');
   /** A world with a charger in front of the robot (east of 2,2). */
   const docked = (src: string, energy: number) => {
-    const w = load(src, { robot: { x: 2, y: 2, heading: 1, energy } });
+    const w = load(src, { robot: { energy } });
     w.grid.set('occupant', 3, 2, OBJECTS.charger());
     return w;
   };
@@ -566,10 +561,10 @@ describe('dock', () => {
   it('charges CHARGE_RATE energy a tick from the charger in front until full', () => {
     const w = docked(dock(), ENERGY_MAX - 3 * CHARGE_RATE - 5);
     expect(w.run(20).reason).toBe('halt');
-    expect(w.robot.cpu.r[1]).toBe(0);
+    expect(r(w, 1)).toBe(0);
     expect(w.robot.energy).toBe(ENERGY_MAX);
     expect(w.tick).toBe(4);
-    expect(w.robot.machine.read(REG.DCKCNT, false)).toBe(0);
+    expect(reg(w, REG.DCKCNT)).toBe(0);
   });
 
   it('DCKCNT limits the energy taken and counts down; it keeps what is left when full first', () => {
@@ -578,30 +573,30 @@ describe('dock', () => {
     // The CPU's polling drain comes off too: count what the dock gave.
     expect(w.robot.energy + w.robot.cpuEnergyUsed).toBe(1100);
     expect(w.tick).toBe(Math.ceil(100 / CHARGE_RATE));
-    expect(w.robot.machine.read(REG.DCKCNT, false)).toBe(0);
+    expect(reg(w, REG.DCKCNT)).toBe(0);
 
     const v = docked(dock(1000), ENERGY_MAX - 10);
     v.run(20);
     expect(v.robot.energy).toBe(ENERGY_MAX);
-    expect(v.robot.cpu.r[1]).toBe(0);
-    expect(v.robot.machine.read(REG.DCKCNT, false)).toBe(990 - v.robot.cpuEnergyUsed);
+    expect(r(v, 1)).toBe(0);
+    expect(reg(v, REG.DCKCNT)).toBe(990 - v.robot.cpuEnergyUsed);
   });
 
   it('nothing to charge from in front, or a bad function, fails at once', () => {
-    const w = load(dock(), { robot: { x: 2, y: 2, heading: 1, energy: 100 } });
+    const w = load(dock(), { robot: { energy: 100 } });
     w.grid.set('occupant', 3, 2, OBJECTS.wall());
     w.run(5);
     expect(w.tick).toBe(0);
-    expect(w.robot.cpu.r[1]).toBe(ERR.NOTHING);
+    expect(r(w, 1)).toBe(ERR.NOTHING);
     const v = docked(` MOV #2!CS.GO, @#DCKCSR\n` + poll('DCKCSR', 'DCKERR'), 100);
     v.run(5);
-    expect(v.robot.cpu.r[1]).toBe(ERR.FUNCTION);
+    expect(r(v, 1)).toBe(ERR.FUNCTION);
   });
 
   it('a full robot gets ER.FUL', () => {
     const w = docked(dock(), ENERGY_MAX);
     w.run(5);
-    expect(w.robot.cpu.r[1]).toBe(ERR.FULL);
+    expect(r(w, 1)).toBe(ERR.FULL);
   });
 
   it('stops with ER.NON when the robot turns away or the charger is destroyed', () => {
@@ -609,7 +604,7 @@ describe('dock', () => {
         MOV #DK.CHG!CS.GO, @#DCKCSR
         MOV #WH.LFT!CS.GO, @#WHLCSR` + poll('DCKCSR', 'DCKERR'), 1000);
     w.run(20);
-    expect(w.robot.cpu.r[1]).toBe(ERR.NOTHING);
+    expect(r(w, 1)).toBe(ERR.NOTHING);
     expect(w.tick).toBe(TICKS.TURN);
     expect(w.robot.energy + w.robot.cpuEnergyUsed).toBe(1000 + (TICKS.TURN - 1) * CHARGE_RATE - COST.TURN);
 
@@ -617,7 +612,7 @@ describe('dock', () => {
     v.run(3);
     v.grid.clear('occupant', 3, 2);
     v.run(5);
-    expect(v.robot.cpu.r[1]).toBe(ERR.NOTHING);
+    expect(r(v, 1)).toBe(ERR.NOTHING);
   });
 
   it('interrupts when done, so the CPU can sleep in WAIT while it charges', () => {
@@ -630,7 +625,7 @@ describe('dock', () => {
 DONE:   MOV #1, R5
         RTI`, ENERGY_MAX - 10 * CHARGE_RATE);
     expect(w.run(50).reason).toBe('halt');
-    expect(w.robot.cpu.r[5]).toBe(1);
+    expect(r(w, 5)).toBe(1);
     expect(w.tick).toBe(10);
     expect(w.robot.energy).toBe(ENERGY_MAX);
   });
@@ -644,7 +639,7 @@ DONE:   MOV #1, R5
         MOV @#WHLERR, R3
         MOV #LS.FIR!CS.GO, @#LSRCSR` + poll('LSRCSR', 'LSRERR'), 1000);
     expect(w.run(20).reason).toBe('halt');
-    expect(w.robot.cpu.r[3]).toBe(ERR.BLOCKED);
+    expect(r(w, 3)).toBe(ERR.BLOCKED);
     expect(w.robot.x).toBe(2);
     expect(w.grid.get('occupant', 3, 2).hp).toBe(255 - LASER_DAMAGE);
   });

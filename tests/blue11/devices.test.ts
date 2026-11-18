@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { assemble, BUS_ERROR, DeviceMachine, KW11L, SimpleMachine, type Cpu, type Device } from '../../src/blue11';
-import { o, runAsm, words } from './helpers';
+import { assemble, BUS_ERROR, DeviceMachine, DL11, KW11L, SimpleMachine, type Cpu, type Device } from '../../src/blue11';
+import { assembleOk } from '../helpers/asm';
+import { boot as bootSimple, o, runAsm, words } from './helpers';
 
 /** A test peripheral: a counter register and a timer that interrupts after `delay` cycles. */
 class Timer implements Device {
@@ -28,12 +29,7 @@ class Timer implements Device {
   canWake(): boolean { return this.left !== Infinity; }
 }
 
-const boot = (m: DeviceMachine, src: string) => {
-  const a = assemble(src);
-  if (!a.ok) throw new Error(a.errors.map((e) => e.message).join('\n'));
-  m.boot(a);
-  return a;
-};
+const boot = (m: DeviceMachine, src: string) => m.boot(assembleOk(src));
 
 describe('blue11 DeviceMachine', () => {
   it('routes reads and writes to devices; byte reads take half the word', () => {
@@ -95,17 +91,88 @@ ISR:    INC R1
     expect(k.read() & 0o200).toBe(0o200);
     expect(k.nextEvent()).toBe(6);
   });
+
+  it('a byte write to the high byte of a device register leaves its low byte alone', () => {
+    const m = new SimpleMachine();
+    const csrs = { RCSR: o('177560'), XCSR: o('177564'), LKS: o('177546') };
+    for (const a of Object.values(csrs)) {
+      expect(m.write(a, 0o300, false)).toBe(true); // interrupts on (LKS keeps DONE)
+      expect(m.write(a + 1, 0o377, true)).toBe(true); // MOVB to the high byte
+    }
+    expect(m.read(csrs.RCSR, false) & 0o100).toBe(0o100);
+    expect(m.read(csrs.XCSR, false) & 0o100).toBe(0o100);
+    expect(m.read(csrs.LKS, false) & 0o300).toBe(0o300);
+    expect(m.write(o('177567'), 0o101, true)).toBe(true); // XBUF high byte: prints nothing
+    expect(m.output).toBe('');
+    // Odd bytes of addresses nobody answers still fault.
+    expect(m.write(o('177571'), 0, true)).toBe(false);
+  });
+
+  it('host word access at the top of RAM stays inside it', () => {
+    const m = new SimpleMachine({ memory: 0o1001 });
+    m.write(0o1000, 0o177777, false);
+    expect(m.read(0o1000, true)).toBe(0o377);
+    expect(Number.isNaN(m.read(0o1000, false))).toBe(false);
+    expect(m.read(0o777, false)).toBe(m.read(0o776, false));
+  });
+
+  it('WAIT with only keyboard interrupts sleeps out the budget in one go', () => {
+    const { m, result } = runAsm(' MOV #2000, SP\n MOV #100, @#177560\n WAIT\n HALT', { budget: 50000 });
+    expect(result.reason).toBe('wait');
+    expect(result.cycles).toBe(50000);
+    expect(m.cycles).toBe(50000);
+  });
+});
+
+describe('blue11 DL11', () => {
+  // A receive request waits behind priority 7; then IE is cleared, or RBUF read.
+  it.each([['IE is cleared', 'CLR @#177560'], ['RBUF is read', 'MOV @#177562, R0']])('its receive request goes away when %s', (_, line) => {
+    const { m } = bootSimple(`
+        MOV #H, @#60
+        CLR @#62
+        MOV #340, @#177776
+        MOV #100, @#177560
+        ${line}
+        CLR @#177776
+        NOP
+        HALT
+H:      MOV #1, R5
+        HALT`);
+    m.type('x');
+    m.run(1000);
+    expect(m.cpu.r[5]).toBe(0);
+  });
+
+  it('RBUF reads the character typed', () => {
+    const { m } = bootSimple(' MOV @#177562, R0\n HALT');
+    m.type('x');
+    m.run(100);
+    expect(m.cpu.r[0]).toBe('x'.charCodeAt(0));
+  });
+
+  it('maxOutput keeps the end of the output', () => {
+    const m = new SimpleMachine();
+    const d = new DL11({ base: 0o176500, vector: 0o70, maxOutput: 3 });
+    m.add(d);
+    boot(m, `
+        MOV #M, R1
+1$:     MOVB (R1)+, @#176506
+        BNE 1$
+        HALT
+M:      .ASCIZ /abcdef/`);
+    m.run(10_000);
+    expect(d.output).toBe('ef\0');
+    expect(() => new DL11({ maxOutput: 0 })).toThrow();
+  });
 });
 
 describe('blue11 Cpu.onInstruction', () => {
   it('sees every instruction once, with its address and first word', () => {
-    const a = assemble(`
+    const { m } = bootSimple(`
         MOV #3, R0
 1$:     DEC R0
         BNE 1$
         HALT`);
-    const m = new SimpleMachine();
-    m.boot(a);
     const seen: Array<[number, number]> = [];
     m.cpu.onInstruction = (pc, op) => seen.push([pc, op]);
     const r = m.run(1000);

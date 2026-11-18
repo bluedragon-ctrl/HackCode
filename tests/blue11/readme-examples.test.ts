@@ -10,9 +10,10 @@ import {
   assemble, BUS_ERROR, Cpu, DeviceMachine, disassemble, octal, SimpleMachine,
   type AssembleResult, type Bus, type Device,
 } from '../../src/blue11';
+import { formatErrors } from '../helpers/asm';
 
 const must = (asm: AssembleResult): AssembleResult => {
-  if (!asm.ok) throw new Error(asm.errors.map((e) => `${e.line}:${e.column} ${e.message}`).join('\n'));
+  if (!asm.ok) throw new Error(formatErrors(asm.errors));
   return asm;
 };
 
